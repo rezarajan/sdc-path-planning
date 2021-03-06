@@ -114,16 +114,23 @@ int main() {
             vel = speed_ms - MAX_ACCEL*0.02;
           } 
 
+          // Normal Acceleration Check
+          double rad_curv = pow(vel,2)/MAX_ACCEL;
+
+
 
           double dist_inc = vel * 0.02;
+          double new_angle = dist_inc/rad_curv;
+          // double dist_inc = 0.5;
+          std::cout << rad_curv << std::endl;
           // Normal Acceleration Check
-          double theta = pi()/100;
-          double acc_norm = pow(speed_ms,2)*theta/dist_inc;
-          if(acc_norm > MAX_ACCEL){
-            vel = sqrt(MAX_ACCEL*dist_inc/theta);
-          }
+          // double theta = pi()/100;
+          // double acc_norm = pow(speed_ms,2)*theta/dist_inc;
+          // if(acc_norm > MAX_ACCEL){
+          //   vel = sqrt(MAX_ACCEL*dist_inc/theta);
+          // }
 
-          dist_inc = vel * 0.02;
+          // dist_inc = vel * 0.02;
           // Straight Line
           // for (int i = 0; i < 50; ++i) {
           //   next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
@@ -154,11 +161,15 @@ int main() {
           }
 
           // Circular Motion
-          for (int i = 0; i < 50-path_size; ++i) {    
-            next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-            next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-            pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-            pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+          for (int i = 0; i < 50-path_size; ++i) {   
+            pos_x += (dist_inc)*cos(angle+(i+1)*new_angle);
+            pos_y += (dist_inc)*sin(angle+(i+1)*new_angle);
+            next_x_vals.push_back(pos_x);
+            next_y_vals.push_back(pos_y);
+            // next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+            // next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+            // pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+            // pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
           }
 
 
