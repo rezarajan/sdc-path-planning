@@ -100,19 +100,11 @@ int main() {
 
           // Testing straight-line path
           double speed_ms = car_speed * 0.44704; // convert from mph to ms-1
-          // double accel = speed_ms/0.02; // acceleration
-          // max accel -> max d_vel
-          // (v-u)/t
-          // u = car_speed(convt to ms-1), t = 0.02 s
-          // v = max_accel*t + u
-          // sqrt((x2-x1)**2 + (y2-y1)**2) = dist_inc
-          // dist_inc/t = v
-          // dist_inc = v*t
           const double MAX_ACCEL = 10;
           const double MAX_VEL = 50 * 0.44704;
           const double VEL_BUFFER = 0.5; // Velocity buffer to ensure car stays within limits with controller error
           double vel;
-          // velocity based on max acceleration
+          // Velocity based on max acceleration
           // unless speed limit reached
           if(speed_ms < MAX_VEL){
             vel = MAX_ACCEL*0.02 + speed_ms;
@@ -121,10 +113,52 @@ int main() {
             // vel = MAX_VEL-VEL_BUFFER;
             vel = speed_ms - MAX_ACCEL*0.02;
           } 
+
+
           double dist_inc = vel * 0.02;
-          for (int i = 0; i < 50; ++i) {
-            next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-            next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+          // Normal Acceleration Check
+          double theta = pi()/100;
+          double acc_norm = pow(speed_ms,2)*theta/dist_inc;
+          if(acc_norm > MAX_ACCEL){
+            vel = sqrt(MAX_ACCEL*dist_inc/theta);
+          }
+
+          dist_inc = vel * 0.02;
+          // Straight Line
+          // for (int i = 0; i < 50; ++i) {
+          //   next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+          //   next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+          // }
+
+          double pos_x;
+          double pos_y;
+          double angle;
+          int path_size = previous_path_x.size();
+
+          for (int i = 0; i < path_size; ++i) {
+            next_x_vals.push_back(previous_path_x[i]);
+            next_y_vals.push_back(previous_path_y[i]);
+          }
+
+          if (path_size == 0) {
+            pos_x = car_x;
+            pos_y = car_y;
+            angle = deg2rad(car_yaw);
+          } else {
+            pos_x = previous_path_x[path_size-1];
+            pos_y = previous_path_y[path_size-1];
+
+            double pos_x2 = previous_path_x[path_size-2];
+            double pos_y2 = previous_path_y[path_size-2];
+            angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+          }
+
+          // Circular Motion
+          for (int i = 0; i < 50-path_size; ++i) {    
+            next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+            next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+            pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+            pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
           }
 
 
