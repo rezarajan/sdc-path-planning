@@ -113,32 +113,33 @@ int main() {
             // vel = MAX_VEL-VEL_BUFFER;
             vel = speed_ms - MAX_ACCEL*0.02;
           } 
+          double dist_inc = vel * 0.02;
 
           // Normal Acceleration Check
           double rad_curv = pow(vel,2)/MAX_ACCEL;
 
+          // double new_angle = dist_inc/rad_curv;
+
+          // Using waypoint data to calculate the maximum time for trajectory
+          // based on Frenet s distance
+          // int waypoint = NextWaypoint(car_x, car_y, car_yaw, map_waypoints_x, map_waypoints_y);
+          // double time = map_waypoints_s[waypoint]/vel;
+
+          /**
+           * TODO: Generate path using time
+           */
+
+          // std::cout << time << std::endl;
 
 
-          double dist_inc = vel * 0.02;
-          double new_angle = dist_inc/rad_curv;
           // double dist_inc = 0.5;
-          std::cout << rad_curv << std::endl;
-          // Normal Acceleration Check
-          // double theta = pi()/100;
-          // double acc_norm = pow(speed_ms,2)*theta/dist_inc;
-          // if(acc_norm > MAX_ACCEL){
-          //   vel = sqrt(MAX_ACCEL*dist_inc/theta);
-          // }
+          // std::cout << rad_curv << std::endl;
 
           // dist_inc = vel * 0.02;
-          // Straight Line
-          // for (int i = 0; i < 50; ++i) {
-          //   next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-          //   next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
-          // }
 
           double pos_x;
           double pos_y;
+          double pos_s;
           double angle;
           int path_size = previous_path_x.size();
 
@@ -150,28 +151,74 @@ int main() {
           if (path_size == 0) {
             pos_x = car_x;
             pos_y = car_y;
-            angle = deg2rad(car_yaw);
+            pos_s = car_s;
+            // angle = deg2rad(car_yaw);
           } else {
             pos_x = previous_path_x[path_size-1];
             pos_y = previous_path_y[path_size-1];
-
             double pos_x2 = previous_path_x[path_size-2];
             double pos_y2 = previous_path_y[path_size-2];
             angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+
+            vector<double> frenet = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
+            pos_s = frenet.data()[0];
           }
 
-          // Circular Motion
-          for (int i = 0; i < 50-path_size; ++i) {   
-            pos_x += (dist_inc)*cos(angle+(i+1)*new_angle);
-            pos_y += (dist_inc)*sin(angle+(i+1)*new_angle);
-            next_x_vals.push_back(pos_x);
-            next_y_vals.push_back(pos_y);
-            // next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-            // next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-            // pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-            // pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+          // Straight Line
+          for (int i = 0; i < 50-path_size; ++i) {
+            double dist_inc_ = 0.25;
+            double ds = pos_s + (dist_inc_*i);
+            vector<double> cartesian = getXY(ds, car_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+
+            //Rescale output to obey acceleration and velocity constraints
+            double cartesian_dist = distance(cartesian.data()[0], cartesian.data()[1], car_x, car_y);
+            if(cartesian_dist > dist_inc){
+              std::cout << "Incremental distance magnitude exceeded: cartesian: [" << cartesian_dist << "]m | incremental: [" << dist_inc << "]m" << std::endl;
+            }
+
+            // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+            // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+            next_x_vals.push_back(cartesian.data()[0]);
+            next_y_vals.push_back(cartesian.data()[1]);
           }
 
+          // double pos_x;
+          // double pos_y;
+          // double angle;
+          // int path_size = previous_path_x.size();
+
+          // for (int i = 0; i < path_size; ++i) {
+          //   next_x_vals.push_back(previous_path_x[i]);
+          //   next_y_vals.push_back(previous_path_y[i]);
+          // }
+
+          // if (path_size == 0) {
+          //   pos_x = car_x;
+          //   pos_y = car_y;
+          //   angle = deg2rad(car_yaw);
+          // } else {
+          //   pos_x = previous_path_x[path_size-1];
+          //   pos_y = previous_path_y[path_size-1];
+
+          //   double pos_x2 = previous_path_x[path_size-2];
+          //   double pos_y2 = previous_path_y[path_size-2];
+          //   angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+          // }
+
+          // // Circular Motion
+          // for (int i = 0; i < 50-path_size; ++i) {   
+          //   pos_x += (dist_inc)*cos(angle+(i+1)*new_angle);
+          //   pos_y += (dist_inc)*sin(angle+(i+1)*new_angle);
+          //   next_x_vals.push_back(pos_x);
+          //   next_y_vals.push_back(pos_y);
+          //   // next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+          //   // next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+          //   // pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+          //   // pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+          // }
+
+          // std::cout << map_waypoints_x.size() << std::endl;
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
