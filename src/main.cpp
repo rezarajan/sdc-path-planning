@@ -110,8 +110,8 @@ int main() {
           vector<double> spline_points_y;
 
           /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
+           * Define a path made up of (x,y) points that the car will visit
+           * sequentially every .02 seconds
            */
 
           // Points of reference from car coordinates to map coordinates
@@ -141,6 +141,20 @@ int main() {
 
 
           std::cout << "Ref: [" << ref_x << "," << ref_y << "]" << std::endl;
+
+          /**
+           * TODO:
+           * Run the trajectory generation for (at most) three trajectories, each corresponding to a valid single lane change:
+           * 1. Keep Lane
+           * 2. Lane Change Left
+           * 3. Lane Change Right
+           * 
+           * Calculate the cost for excuting each trajectory and select the one with the lowest cost.
+           * Criteria:
+           * 1. Collision (Penalizes trajectories which collide with vehicles)
+           * 2. Buffer (Pelanizes trajectories which are closer to other vehicles)
+           * 3. Efficiency (reward high average speeds)
+           */
 
           int lane = 1; // TODO: Change this
           // Setting up target points in the future for the trajectory
