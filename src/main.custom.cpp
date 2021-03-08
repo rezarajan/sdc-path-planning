@@ -96,109 +96,87 @@ int main() {
            *   sequentially every .02 seconds
            */
 
-          int path_size = previous_path_x.size();
+            int prev_size = previous_path_x.size();
 
             // Preventing collitions.
-            if (path_size > 0) {
+            if (prev_size > 0) {
               car_s = end_path_s;
             }
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          // Behavior : Let's see what to do.
+            double speed_diff = 0;
+            const double MAX_SPEED = 49.5;
+            const double MAX_ACC = .224;
 
-          // Pivot points for generating a smooth trajectory
-          vector<double> spline_points_x;
-          vector<double> spline_points_y;
+            int lane = 1;
+ 
 
-          /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
-           */
+          	vector<double> ptsx;
+            vector<double> ptsy;
 
-          // Points of reference from car coordinates to map coordinates
-          double ref_x;
-          double ref_y;
-          double ref_yaw;
+            double ref_x = car_x;
+            double ref_y = car_y;
+            double ref_yaw = deg2rad(car_yaw);
 
-          if (path_size < 2) {
-            ref_x = car_x;
-            ref_y = car_y;
-            ref_yaw = deg2rad(car_yaw);
-            spline_points_x.push_back(ref_x);
-            spline_points_y.push_back(ref_y);
-          } else {
-            ref_x = previous_path_x[path_size-1];
-            ref_y = previous_path_y[path_size-1];
+            // Do I have have previous points
+            if ( prev_size < 2 ) {
+                // There are not too many...
+                double prev_car_x = car_x - cos(car_yaw);
+                double prev_car_y = car_y - sin(car_yaw);
 
-            double pos_x2 = previous_path_x[path_size-2];
-            double pos_y2 = previous_path_y[path_size-2];
-            ref_yaw = atan2(ref_y-pos_y2,ref_x-pos_x2);
+                ptsx.push_back(prev_car_x);
+                ptsx.push_back(car_x);
 
-            spline_points_x.push_back(pos_x2);
-            spline_points_x.push_back(ref_x);
-            spline_points_y.push_back(pos_y2);
-            spline_points_y.push_back(ref_y);
-          }
+                ptsy.push_back(prev_car_y);
+                ptsy.push_back(car_y);
+            } else {
+                // Use the last two points.
+                ref_x = previous_path_x[prev_size - 1];
+                ref_y = previous_path_y[prev_size - 1];
 
+                double ref_x_prev = previous_path_x[prev_size - 2];
+                double ref_y_prev = previous_path_y[prev_size - 2];
+                ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
 
-          std::cout << "Ref: [" << ref_x << "," << ref_y << "]" << std::endl;
+                ptsx.push_back(ref_x_prev);
+                ptsx.push_back(ref_x);
 
-          int lane = 1; // TODO: Change this
-          // Setting up target points in the future for the trajectory
-          vector<double> next_wp0 = getXY(car_s + 30, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 60, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 90, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                ptsy.push_back(ref_y_prev);
+                ptsy.push_back(ref_y);
+            }
 
-          spline_points_x.push_back(next_wp0[0]);
-          spline_points_x.push_back(next_wp1[0]);
-          spline_points_x.push_back(next_wp2[0]);
+            // Setting up target points in the future.
+            vector<double> next_wp0 = getXY(car_s + 30, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s + 60, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s + 90, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-          spline_points_y.push_back(next_wp0[1]);
-          spline_points_y.push_back(next_wp1[1]);
-          spline_points_y.push_back(next_wp2[1]);
+            ptsx.push_back(next_wp0[0]);
+            ptsx.push_back(next_wp1[0]);
+            ptsx.push_back(next_wp2[0]);
 
+            ptsy.push_back(next_wp0[1]);
+            ptsy.push_back(next_wp1[1]);
+            ptsy.push_back(next_wp2[1]);
 
-          std::cout << "Converting To Local (Car) Coordinates" << std::endl;
+            // Making coordinates to local car coordinates.
+            for ( int i = 0; i < ptsx.size(); i++ ) {
+              double shift_x = ptsx[i] - ref_x;
+              double shift_y = ptsy[i] - ref_y;
 
-        /**
-         * NOTE: The waypoints are converted to local car coordinates first
-         * because keeping global coordinates may result in a spline which
-         * spans large values, and this can lead to adverse effects with point
-         * generation.
-         */
-        // Rotating the points clockwise, with the car as the origin
-          for(int i = 0; i < spline_points_x.size(); ++i){
-            double x = spline_points_x[i];
-            double y = spline_points_y[i];
-            x -= ref_x;
-            y -= ref_y;
+              ptsx[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
+              ptsy[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
+            }
 
-            double x_ = x * cos(ref_yaw) + y * sin(ref_yaw);
-            double y_ = -x * sin(ref_yaw) + y * cos(ref_yaw);
+            // Create the spline.
+            tk::spline s;
+            s.set_points(ptsx, ptsy);
 
-            spline_points_x[i] = x_;
-            spline_points_y[i] = y_;
-          }
-
-          // for ( int i = 0; i < spline_points_x.size(); i++ ) {
-          //   double shift_x = spline_points_x[i] - ref_x;
-          //   double shift_y = spline_points_y[i] - ref_y;
-
-          //   spline_points_x[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
-          //   spline_points_y[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
-          // }
-
-          std::cout << "Generating Spline" << std::endl;
-
-          tk::spline s;
-          s.set_points(spline_points_x, spline_points_y);
-
-          std::cout << "Spline Generated" << std::endl;
-
-          for (int i = 0; i < path_size; ++i) {
-            next_x_vals.push_back(previous_path_x[i]);
-            next_y_vals.push_back(previous_path_y[i]);
-          }
-          std::cout << "Previous Values Set" << std::endl;
+            // Output path points from previous path for continuity.
+          	vector<double> next_x_vals;
+          	vector<double> next_y_vals;
+            for ( int i = 0; i < prev_size; i++ ) {
+              next_x_vals.push_back(previous_path_x[i]);
+              next_y_vals.push_back(previous_path_y[i]);
+            }
 
 
 
@@ -230,7 +208,7 @@ int main() {
           // std::cout << "Velocity: " << vel << "ms-1" << std::endl;
           int counter = 1;
           double ref_vel = speed_ms;
-          for(int i = 0; i < 50-path_size; ++i){
+          for(int i = 0; i < 50-prev_size; ++i){
             // speed_diff = 5.0;
             // ref_vel += speed_diff;
             // if( ref_vel > MAX_VEL ) {
