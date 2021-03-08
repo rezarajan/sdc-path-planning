@@ -6,6 +6,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
+#include "spline.h"
 #include "json.hpp"
 
 // for convenience
@@ -93,12 +94,16 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
+          // Pivot points for generating a smooth trajectory
+          vector<double> spline_points_x;
+          vector<double> spline_points_y;
+
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
 
-          // Testing straight-line path
+          // Velocity Control Logic
           double speed_ms = car_speed * 0.44704; // convert from mph to ms-1
           const double MAX_ACCEL = 10;
           const double MAX_VEL = 50 * 0.44704;
@@ -115,7 +120,7 @@ int main() {
           } 
 
 
-          double dist_inc = vel * 0.02;
+          double dist_inc;
           // Normal Acceleration Check
           double theta = pi()/100;
           double acc_norm = pow(speed_ms,2)*theta/dist_inc;
@@ -135,15 +140,12 @@ int main() {
           double angle;
           int path_size = previous_path_x.size();
 
-          for (int i = 0; i < path_size; ++i) {
-            next_x_vals.push_back(previous_path_x[i]);
-            next_y_vals.push_back(previous_path_y[i]);
-          }
-
-          if (path_size == 0) {
+          if (path_size < 2) {
             pos_x = car_x;
             pos_y = car_y;
             angle = deg2rad(car_yaw);
+            spline_points_x.push_back(pos_x);
+            spline_points_y.push_back(pos_y);
           } else {
             pos_x = previous_path_x[path_size-1];
             pos_y = previous_path_y[path_size-1];
@@ -151,15 +153,70 @@ int main() {
             double pos_x2 = previous_path_x[path_size-2];
             double pos_y2 = previous_path_y[path_size-2];
             angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+
+            spline_points_x.push_back(pos_x2);
+            spline_points_x.push_back(pos_x);
+            spline_points_y.push_back(pos_y2);
+            spline_points_y.push_back(pos_y);
           }
 
-          // Circular Motion
-          for (int i = 0; i < 50-path_size; ++i) {    
-            next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-            next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-            pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-            pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+          double ref_x = spline_points_x.back();
+          double ref_y = spline_points_y.back();
+
+          std::cout << "Ref: " << ref_x << std::endl;
+
+          int lane = 0; // TODO: Change this
+          // Setting up target points in the future for the trajectory
+          vector<double> next_wp0 = getXY(car_s + 30, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s + 60, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s + 90, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+          spline_points_x.push_back(next_wp0[0]);
+          spline_points_x.push_back(next_wp1[0]);
+          spline_points_x.push_back(next_wp2[0]);
+
+          spline_points_y.push_back(next_wp0[1]);
+          spline_points_y.push_back(next_wp1[1]);
+          spline_points_y.push_back(next_wp2[1]);
+
+          std::cout << "Generating Spline" << std::endl;
+
+          tk::spline s;
+          s.set_points(spline_points_x, spline_points_y);
+
+          std::cout << "Spline Generated" << std::endl;
+
+          double target_x = 30.0 + ref_x; // some target in the future
+          double target_y = s(target_x); // some target in the future
+          double target_dist = distance(target_x, target_y, ref_x, ref_y);
+
+          std::cout << "Target Set" << std::endl;
+
+          for (int i = 0; i < path_size; ++i) {
+            next_x_vals.push_back(previous_path_x[i]);
+            next_y_vals.push_back(previous_path_y[i]);
           }
+
+          std::cout << "Previous Values Set" << std::endl;
+
+          int counter = 1;
+          for(int i = 0; i < 50-path_size; ++i){
+            double point_x = ref_x + dist_inc*counter;
+            double point_y = s(point_x);
+
+            next_x_vals.push_back(point_x);
+            next_y_vals.push_back(point_y);
+            ++counter;
+          }
+
+
+          // Circular Motion
+          // for (int i = 0; i < 50-path_size; ++i) {    
+          //   next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+          //   next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+          //   pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+          //   pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+          // }
 
 
           msgJson["next_x"] = next_x_vals;
