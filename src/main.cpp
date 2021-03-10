@@ -157,6 +157,9 @@ int main() {
            */
 
           int lane = 1; // TODO: Change this
+
+          
+
           // Setting up target points in the future for the trajectory
           vector<double> next_wp0 = getXY(car_s + 30, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp1 = getXY(car_s + 60, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -222,15 +225,39 @@ int main() {
           const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
           double vel;
 
+          double target_vel = MAX_VEL;
+          // double car_x_vel = speed_ms*cos(ref_yaw);
+          // double car_y_vel = speed_ms*sin(ref_yaw);
+          for(auto &s: sensor_fusion){
+            if(s[6] >= 4 && s[6] <= 8 && s[5] > car_s){
+                double x_map = s[1];
+                double y_map = s[2];
+                // std::cout << "Following Vehicle Coordinates: [" << x_map << "," << y_map << "]" << std::endl;
+
+                double veh_dist = distance(x_map, y_map, ref_x, ref_y);
+                std::cout << "Following Vehicle Distance: " << veh_dist << std::endl;
+                if(veh_dist < target_dist){
+                  double x_vel = s[3];
+                  double y_vel = s[4];
+                  double vel_mag = sqrt(x_vel*x_vel + y_vel*y_vel);
+                  if(vel_mag < target_vel){
+                    std::cout << "Setting new target velocity " << target_vel << "-> " << vel_mag << std::endl;
+                    target_vel = vel_mag;
+                    std::cout << "New target velocity set: " <<target_vel << std::endl;
+                  }
+                }
+            } 
+          }
+
           // Velocity based on max acceleration
           // unless speed limit reached
-          double max_vel_buf = MAX_VEL - VEL_BUFFER;
+          double max_vel_buf = target_vel - VEL_BUFFER;
           // Increase velocity if within limits
           if(speed_ms <= max_vel_buf){
             vel = speed_ms + VEL_BUFFER;
           }
           // Decrease velocity if exceeded limits
-          else if(speed_ms > MAX_VEL){
+          else if(speed_ms > max_vel_buf){
             vel = speed_ms - VEL_BUFFER;
           } 
           // Keep velocity if within tolerance
