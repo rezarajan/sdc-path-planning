@@ -218,17 +218,25 @@ int main() {
           double speed_ms = car_speed * 0.44704; // convert from mph to ms-1
           const double MAX_ACCEL = 10;
           const double MAX_VEL = 50 * 0.44704;
-          const double VEL_BUFFER = 0.5; // Velocity buffer to ensure car stays within limits with controller error
+          const double ACCEL_TIME = 0.2; // Acceleration is measured in 0.2s invervals by the simulator
+          const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
           double vel;
           // Velocity based on max acceleration
           // unless speed limit reached
-          if(speed_ms < MAX_VEL-VEL_BUFFER){
-            vel = MAX_ACCEL*0.02 + speed_ms;
+
+          double max_vel_buf = MAX_VEL - VEL_BUFFER;
+          // Increase velocity if within limits
+          if(speed_ms <= max_vel_buf){
+            vel = speed_ms + VEL_BUFFER;
           }
-          else{
-            // vel = MAX_VEL-VEL_BUFFER;
-            vel = speed_ms - MAX_ACCEL*0.02;
+          // Decrease velocity if exceeded limits
+          else if(speed_ms > MAX_VEL){
+            vel = speed_ms - VEL_BUFFER;
           } 
+          // Keep velocity if within tolerance
+          else{
+            vel = speed_ms;
+          }
 
           // double dist_inc = vel * 0.02;
           // double target_inc = dist_inc/target_dist;
@@ -245,6 +253,8 @@ int main() {
             // Counter-clockwise rotation and translation
             double point_x_ = point_x*cos(ref_yaw) - point_y*sin(ref_yaw);
             double point_y_ = point_x*sin(ref_yaw) + point_y*cos(ref_yaw);
+
+            // Translating back to map coordinates
             point_x_ += ref_x;
             point_y_ += ref_y;
 
