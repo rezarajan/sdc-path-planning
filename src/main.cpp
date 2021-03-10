@@ -221,9 +221,9 @@ int main() {
           const double ACCEL_TIME = 0.2; // Acceleration is measured in 0.2s invervals by the simulator
           const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
           double vel;
+
           // Velocity based on max acceleration
           // unless speed limit reached
-
           double max_vel_buf = MAX_VEL - VEL_BUFFER;
           // Increase velocity if within limits
           if(speed_ms <= max_vel_buf){
@@ -238,15 +238,10 @@ int main() {
             vel = speed_ms;
           }
 
-          // double dist_inc = vel * 0.02;
-          // double target_inc = dist_inc/target_dist;
-          // std::cout << "Target Distance: " << target_dist << "m" << std::endl;
-          // std::cout << "Velocity: " << vel << "ms-1" << std::endl;
-          int counter = 1;
-          double ref_vel = speed_ms;
+          // Path point generation
           for(int i = 0; i < 50-path_size; ++i){
             double N = target_dist/(0.02*vel);
-            double point_x = target_x/N*counter;
+            double point_x = target_x/N*(i+1);
             double point_y = s(point_x);
 
             // Transforming the points back to map coordinates
@@ -260,7 +255,6 @@ int main() {
 
             next_x_vals.push_back(point_x_);
             next_y_vals.push_back(point_y_);
-            ++counter;
           }
 
           msgJson["next_x"] = next_x_vals;
