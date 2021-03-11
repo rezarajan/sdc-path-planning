@@ -51,7 +51,12 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+  // The simulator updates the car speed at relatively long intervals.
+  // Therefore, to ensure smooth transitions in the path, a global variable
+  // for velocity is kept and updated on each iteration.
+  double vel = 0;
+
+  h.onMessage([&vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
@@ -140,7 +145,7 @@ int main() {
           }
 
 
-          std::cout << "Ref: [" << ref_x << "," << ref_y << "]" << std::endl;
+          // std::cout << "Ref: [" << ref_x << "," << ref_y << "]" << std::endl;
 
           /**
            * TODO:
@@ -174,7 +179,7 @@ int main() {
           spline_points_y.push_back(next_wp2[1]);
 
 
-          std::cout << "Converting To Local (Car) Coordinates" << std::endl;
+          // std::cout << "Converting To Local (Car) Coordinates" << std::endl;
 
         /**
          * NOTE: The waypoints are converted to local car coordinates first
@@ -196,18 +201,18 @@ int main() {
             spline_points_y[i] = y_;
           }
 
-          std::cout << "Generating Spline" << std::endl;
+          // std::cout << "Generating Spline" << std::endl;
 
           tk::spline s;
           s.set_points(spline_points_x, spline_points_y);
 
-          std::cout << "Spline Generated" << std::endl;
+          // std::cout << "Spline Generated" << std::endl;
 
           for (int i = 0; i < path_size; ++i) {
             next_x_vals.push_back(previous_path_x[i]);
             next_y_vals.push_back(previous_path_y[i]);
           }
-          std::cout << "Previous Values Set" << std::endl;
+          // std::cout << "Previous Values Set" << std::endl;
 
 
 
@@ -215,19 +220,17 @@ int main() {
           double target_y = s(target_x); // some target in the future
           double target_dist = distance(target_x, target_y, 0.0, 0.0);
 
-          std::cout << "Target Distance: " << target_dist << std::endl;
+          // std::cout << "Target Distance: " << target_dist << std::endl;
 
           // Velocity Control Logic
           double speed_ms = car_speed * 0.44704; // convert from mph to ms-1
           const double MAX_ACCEL = 10;
-          const double MAX_VEL = 50 * 0.44704;
-          const double ACCEL_TIME = 0.2; // Acceleration is measured in 0.2s invervals by the simulator
+          const double MAX_VEL = 49.5 * 0.44704;
+          const double ACCEL_TIME = 0.02; // Acceleration is measured in 0.2s invervals by the simulator, but this timeframe can cause jerky motion
           const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
-          double vel;
+          // double vel;
 
           double target_vel = MAX_VEL;
-          // double car_x_vel = speed_ms*cos(ref_yaw);
-          // double car_y_vel = speed_ms*sin(ref_yaw);
           for(auto &s: sensor_fusion){
             if(s[6] >= 4 && s[6] <= 8 && s[5] > car_s){
                 double x_map = s[1];
@@ -235,35 +238,39 @@ int main() {
                 // std::cout << "Following Vehicle Coordinates: [" << x_map << "," << y_map << "]" << std::endl;
 
                 double veh_dist = distance(x_map, y_map, ref_x, ref_y);
-                std::cout << "Following Vehicle Distance: " << veh_dist << std::endl;
+                // std::cout << "Following Vehicle Distance: " << veh_dist << std::endl;
                 if(veh_dist < target_dist){
                   double x_vel = s[3];
                   double y_vel = s[4];
                   double vel_mag = sqrt(x_vel*x_vel + y_vel*y_vel);
                   if(vel_mag < target_vel){
-                    std::cout << "Setting new target velocity " << target_vel << "-> " << vel_mag << std::endl;
+                    // std::cout << "Setting new target velocity " << target_vel << "-> " << vel_mag << std::endl;
                     target_vel = vel_mag;
-                    std::cout << "New target velocity set: " <<target_vel << std::endl;
+                    // std::cout << "New target velocity set: " <<target_vel << std::endl;
                   }
                 }
             } 
           }
+
+          // For speed differences which are smaller than the max incremental change
+          double speed_diff = fabs(target_vel-vel);
+          if(speed_diff > VEL_BUFFER){
+            speed_diff = VEL_BUFFER;
+          }
+
+          // std::cout << "Speed Diff: " << speed_diff << std::endl;
 
           // Velocity based on max acceleration
           // unless speed limit reached
           double max_vel_buf = target_vel - VEL_BUFFER;
           // Increase velocity if within limits
           if(speed_ms <= max_vel_buf){
-            vel = speed_ms + VEL_BUFFER;
+            vel += speed_diff;
           }
           // Decrease velocity if exceeded limits
           else if(speed_ms > max_vel_buf){
-            vel = speed_ms - VEL_BUFFER;
+            vel -= speed_diff;
           } 
-          // Keep velocity if within tolerance
-          else{
-            vel = speed_ms;
-          }
 
           // Path point generation
           for(int i = 0; i < 50-path_size; ++i){
@@ -282,6 +289,27 @@ int main() {
 
             next_x_vals.push_back(point_x_);
             next_y_vals.push_back(point_y_);
+
+            /**
+             * NOTE: A mathematical approach to finding the optimal velocity between each point in the spline
+             * Given how velocity is controlled in the simulator, this may require breaking points into smaller increments,
+             * or iteratively solving for the x point which produces a y point which satisfies the maximum velocity criteria. 
+             * a_t = r*w
+             * a_n = v^2/r
+             * a = sqrt(a_t + a_n)
+             * sqrt(10) = a_t + a_n
+             * v^2 + r^2*w = r*sqrt(10)
+             *  
+             * theta = atan2(py-ry, px-rx)
+             * w = theta/0.02
+             * 
+             * s = distance(px, py, 0, 0)
+             * s = r*theta
+             * r = s/theta
+             * 
+             * Solve for v
+             */
+
           }
 
           msgJson["next_x"] = next_x_vals;
