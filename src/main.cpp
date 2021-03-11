@@ -226,7 +226,7 @@ int main() {
           double speed_ms = car_speed * 0.44704; // convert from mph to ms-1
           const double MAX_ACCEL = 10;
           const double MAX_VEL = 49.5 * 0.44704;
-          const double ACCEL_TIME = 0.02; // Acceleration is measured in 0.2s invervals by the simulator, but this timeframe can cause jerky motion
+          const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
           const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
           // double vel;
 
@@ -252,31 +252,42 @@ int main() {
             } 
           }
 
-          // For speed differences which are smaller than the max incremental change
-          double speed_diff = fabs(target_vel-vel);
-          if(speed_diff > VEL_BUFFER){
-            speed_diff = VEL_BUFFER;
-          }
 
           // std::cout << "Speed Diff: " << speed_diff << std::endl;
 
-          // Velocity based on max acceleration
-          // unless speed limit reached
-          double max_vel_buf = target_vel - VEL_BUFFER;
-          // Increase velocity if within limits
-          if(speed_ms <= max_vel_buf){
-            vel += speed_diff;
-          }
-          // Decrease velocity if exceeded limits
-          else if(speed_ms > max_vel_buf){
-            vel -= speed_diff;
-          } 
 
+          /** 
+           * Keeping track of the most recent x-point to allow variable velocity increments
+           * at each path point. This is required especially when the car is starting from
+           * idle, where path points may cluster and cause the car to jitter.
+           * NOTE: this does not matter when velocity is constant, but is important to ensure 
+           * smooth motion when velocity can change.
+           */
+          double x_ref = 0;
           // Path point generation
           for(int i = 0; i < 50-path_size; ++i){
+            // Velocity based on max acceleration
+            // unless speed limit reached
+            double max_vel_buf = target_vel - VEL_BUFFER;
+            // For speed differences which are smaller than the max 
+            // incremental velocity change
+            double speed_diff = fabs(target_vel-vel);
+            if(speed_diff > VEL_BUFFER){
+              speed_diff = VEL_BUFFER;
+            }
+            // Increase velocity if within limits
+            if(vel <= max_vel_buf){
+              vel += speed_diff;
+            }
+            // Decrease velocity if exceeded limits
+            else if(vel > max_vel_buf){
+              vel -= speed_diff;
+            } 
             double N = target_dist/(0.02*vel);
-            double point_x = target_x/N*(i+1);
+            double point_x = x_ref + target_x/N;
             double point_y = s(point_x);
+
+            x_ref = point_x;
 
             // Transforming the points back to map coordinates
             // Counter-clockwise rotation and translation
@@ -289,26 +300,6 @@ int main() {
 
             next_x_vals.push_back(point_x_);
             next_y_vals.push_back(point_y_);
-
-            /**
-             * NOTE: A mathematical approach to finding the optimal velocity between each point in the spline
-             * Given how velocity is controlled in the simulator, this may require breaking points into smaller increments,
-             * or iteratively solving for the x point which produces a y point which satisfies the maximum velocity criteria. 
-             * a_t = r*w
-             * a_n = v^2/r
-             * a = sqrt(a_t + a_n)
-             * sqrt(10) = a_t + a_n
-             * v^2 + r^2*w = r*sqrt(10)
-             *  
-             * theta = atan2(py-ry, px-rx)
-             * w = theta/0.02
-             * 
-             * s = distance(px, py, 0, 0)
-             * s = r*theta
-             * r = s/theta
-             * 
-             * Solve for v
-             */
 
           }
 
