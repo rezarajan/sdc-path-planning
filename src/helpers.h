@@ -11,6 +11,8 @@ using std::string;
 using std::vector;
 using Eigen::MatrixXd;
 
+enum class State {KL, LCR, LCL};
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 //   else the empty string "" will be returned.
@@ -204,6 +206,55 @@ double toEquation(vector<double> &jmt, double time){
     total += jmt.data()[i] * pow(time,i);
   }
   return total;
+}
+
+vector<State> validStates(const double &car_d){
+  /**
+   * @param car_d - ego vehicle Frenet d value
+   * 
+   * This function returns the next valid lane change states for the ego vehicle
+   */ 
+  // Find the next states for the vehicle
+  vector<State> valid_states;
+  switch(int(car_d/4)) {
+    case(0):
+      // If in leftmost lane, then Keep Lane or Lane Change Right
+      valid_states = {State::KL, State::LCR};
+      break;
+    case(1):
+      // If in center lane, then Keep Lane, Lane Change Right or Lane Change Left
+      valid_states = {State::KL, State::LCR, State::LCL};
+      break;
+    case(2):
+      // If in rightmost lane, then Keep Lane or Lane Change Left
+      valid_states = {State::KL, State::LCL};
+      break;
+    default:
+      // Default to just Keep Lane
+      valid_states = {State::KL};
+      break;
+  }
+
+  return valid_states;
+}
+
+vector<State> bestTrajectory(const vector<double> &vehicle_telemetry, const vector<vector<double>> &sensor_fusion){
+  /**
+   * @param vehicle_telemetry - ego vehicle map x, map y, velocity, heading, Frenet s, Frenet d
+   * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
+   */
+
+
+  // Find the next states for the vehicle
+  vector<State> valid_states = validStates(vehicle_telemetry[6]);
+
+  /**
+   * TODO: Generate trajectories for each valid state and find the cheapest one (based on cost functions)
+   * TODO: Create cost functions for each trajectory
+   */
+  State best_state = State::KL;
+  vector<State> best_states;
+  return best_states;
 }
 
 #endif  // HELPERS_H

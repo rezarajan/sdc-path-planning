@@ -230,6 +230,25 @@ int main() {
           const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
           // double vel;
 
+          
+          // std::cout << "The next valid states are: " << std::endl;
+          // vector<State> lane_changes = validStates(car_d);
+          // for(auto &s: lane_changes){
+          //   string print_statement = "";
+          //   if(s == State::KL){
+          //     print_statement = "Keep Lane";
+          //   }
+          //   else if(s == State::LCR){
+          //     print_statement = "Lane Change Right";
+          //   }
+          //   else if(s == State::LCL){
+          //     print_statement = "Lane Change Left";
+          //   }
+
+          //   std::cout << print_statement << std::endl;
+          // }
+
+          // Velocity Limiter for Lane Keeping
           double target_vel = MAX_VEL;
           for(auto &s: sensor_fusion){
             if(s[6] >= 4 && s[6] <= 8 && s[5] > car_s){
