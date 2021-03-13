@@ -239,6 +239,78 @@ vector<State> validStates(const double &car_d){
   return valid_states;
 }
 
+
+ /**
+   * Find the closest vehicles both ahead and behind the car, in the target lane. Returns the target velocity
+   * for path generation.
+   * @param sensor_fusion sensor fusion data {car id, map x, map y, velocity x, velocity y, Frenet s, Frenet d}
+   * @param ref_x reference point x on path (usually at the end point of the previous path if there is one)
+   * @param ref_y reference point y on path (usually at the end point of the previous path if there is one)
+   * @param car_s Frenet s value for corresponding reference point on path (ref_x, ref_y -> s)
+   * @param target vector of Frenet {s, d} coordinates, where s is relative to the reference point
+  */ 
+double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const double &ref_x, const double &ref_y,
+                                            const double &car_s, const vector<double> &target){
+
+  // Velocity Control Logic
+    const double MAX_ACCEL = 10;
+    const double MAX_VEL = 49.5 * 0.44704;
+    const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
+    const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
+
+
+    // Find all vehicles in the target lane
+    vector<vector<double>> target_vehicles;
+    int target_d = floor(target[1]/4);
+    for(const auto &s: sensor_fusion){
+      int s_d = floor(s[6]/4);
+      if(s_d == target_d){
+        double x_map = s[1];
+        double y_map = s[2];
+        double x_vel = s[3];
+        double y_vel = s[4];
+        double dist = distance(x_map, y_map, ref_x, ref_y);
+        double vel = sqrt(x_vel*x_vel + y_vel*y_vel);
+        
+        target_vehicles.push_back({dist, s[5], vel});
+      }
+    }
+
+    // Sort by smallest distance
+    if(target_vehicles.size() > 1){
+        std::sort(target_vehicles.begin(), target_vehicles.end(), 
+        [](const vector<double> &v_a, const vector<double> & v_b) 
+        { return v_a[0] < v_b[0]; });
+    }
+
+    // Find the two closest vehicles, each either ahead or behind the ego vehicle
+    /**
+     *  TODO: move target id caching to another function for collision checking.
+     *        This is not required here.
+     */ 
+    bool car_ahead = false;
+    bool car_behind = false;
+    vector<int> target_ids;
+    double target_velocity = MAX_VEL;
+    for(int i = 0; i < target_vehicles.size(); ++i){
+      if(car_ahead && car_behind){
+        break;
+      }
+      if(!car_ahead && (target_vehicles[i][1] > car_s)){
+        target_ids.push_back(i);
+        // Set a minimum target velocity if there is a car ahead, and in range of target distance
+        if((target_vehicles[i][2] <= MAX_VEL) && (target_vehicles[i][0] < target[0])){
+          target_velocity = target_vehicles[i][2];
+        }
+      }
+      if(!car_behind && (target_vehicles[i][1] <= car_s)){
+        target_ids.push_back(i);
+      }
+    }
+
+      return target_velocity;
+}
+
   /**
    * Generates a spline given the start and end positions in Frenet coordinates
    * @param start starting Frenet coordinates as a vector of {s, d} relative to the ego vehicle
@@ -364,23 +436,8 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 
 
     // Velocity Limiter for Lane Keeping
-    double target_vel = MAX_VEL;
-    for(auto &s: sensor_fusion){
-      if(s[6] >= 4 && s[6] <= 8 && s[5] > car_s){
-          double x_map = s[1];
-          double y_map = s[2];
-
-          double veh_dist = distance(x_map, y_map, ref_x, ref_y);
-          if(veh_dist < target_dist){
-            double x_vel = s[3];
-            double y_vel = s[4];
-            double vel_mag = sqrt(x_vel*x_vel + y_vel*y_vel);
-            if(vel_mag < target_vel){
-              target_vel = vel_mag;
-            }
-          }
-      } 
-    }
+    vector<double> target = {target_dist, 6};
+    double target_vel = getTargetVelocity(sensor_fusion, ref_x, ref_y, car_s, target);
 
 
     /** 
