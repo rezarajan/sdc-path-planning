@@ -3,6 +3,7 @@
         "cmath": "cpp",
         "qr": "cpp",
         "core": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "vector": "cpp"
     }
 }

@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string>
 #include <vector>
+#include "spline.h"
 #include "Eigen-3.3/Eigen/Dense"
 
 // for convenience
@@ -208,12 +209,12 @@ double toEquation(vector<double> &jmt, double time){
   return total;
 }
 
+/**
+ * @param car_d - ego vehicle Frenet d value
+ * 
+ * This function returns the next valid lane change states for the ego vehicle
+ */ 
 vector<State> validStates(const double &car_d){
-  /**
-   * @param car_d - ego vehicle Frenet d value
-   * 
-   * This function returns the next valid lane change states for the ego vehicle
-   */ 
   // Find the next states for the vehicle
   vector<State> valid_states;
   switch(int(car_d/4)) {
@@ -238,11 +239,205 @@ vector<State> validStates(const double &car_d){
   return valid_states;
 }
 
-vector<State> bestTrajectory(const vector<double> &vehicle_telemetry, const vector<vector<double>> &sensor_fusion){
   /**
-   * @param vehicle_telemetry - ego vehicle map x, map y, velocity, heading, Frenet s, Frenet d
-   * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
+   * Generates a spline given the start and end positions in Frenet coordinates
+   * @param start starting Frenet coordinates as a vector of {s, d} relative to the ego vehicle
+   * @param end end Frenet coordinates as a vector of {s, d} relative to the ego vehicle
+   * @param previous_path previous path points to include in trajectory generation in map {x,y} coordinates
+   * @param end_path the Frenet coordinates of the end of the previous path {s,d}
+   * @param vehicle_telemetry ego vehicle map x, map y, heading, Frenet s, Frenet d
+   * @param sensor_fusion sensor fusion data {car id, map x, map y, velocity x, velocity y, Frenet s, Frenet d}
+   * @param map_waypoints vector of map waypoint {Frenet s, x, y} coordinates
+  */ 
+vector<vector<double>> generateTrajectory(const vector<double> &start, const vector<double> &end, double &vel,
+                                          const vector<double> &previous_path_x,
+                                          const vector<double> &previous_path_y,
+                                          const vector<vector<double>> &sensor_fusion, 
+                                          const vector<double> &end_path,
+                                          const vector<double> &vehicle_telemetry, 
+                                          const vector<double> &map_waypoints_s,
+                                          const vector<double> &map_waypoints_x,
+                                          const vector<double> &map_waypoints_y){
+  
+    int path_size = previous_path_x.size();
+    double car_s = vehicle_telemetry[3];
+
+    // Preventing collisions.
+    if (path_size > 0) {
+      car_s = end_path[0];
+    }
+    vector<double> next_x_vals;
+    vector<double> next_y_vals;
+
+    // Pivot points for generating a smooth trajectory
+    vector<double> spline_points_x;
+    vector<double> spline_points_y;
+
+    /**
+     * Define a path made up of (x,y) points that the car will visit
+     * sequentially every .02 seconds
+     */
+
+    // Points of reference from car coordinates to map coordinates
+    double ref_x;
+    double ref_y;
+    double ref_yaw;
+
+    if (path_size < 2) {
+      ref_x = vehicle_telemetry[0];
+      ref_y = vehicle_telemetry[1];
+      ref_yaw = deg2rad(vehicle_telemetry[2]);
+      spline_points_x.push_back(ref_x);
+      spline_points_y.push_back(ref_y);
+    } else {
+      ref_x = previous_path_x[path_size-1];
+      ref_y = previous_path_y[path_size-1];
+
+      double pos_x2 = previous_path_x[path_size-2];
+      double pos_y2 = previous_path_y[path_size-2];
+      ref_yaw = atan2(ref_y-pos_y2,ref_x-pos_x2);
+
+      spline_points_x.push_back(pos_x2);
+      spline_points_x.push_back(ref_x);
+      spline_points_y.push_back(pos_y2);
+      spline_points_y.push_back(ref_y);
+    }
+
+    // Define spline midpoints
+    double mid_s = 0.5*(start[0]+end[0]);
+    double mid_d = 0.5*(start[1]+end[1]);
+    // Setting up target points in the future for the trajectory
+    vector<double> next_wp0 = getXY(car_s + start[0], start[1], map_waypoints_s, map_waypoints_x, map_waypoints_y);
+    vector<double> next_wp1 = getXY(car_s + mid_s   , mid_d   , map_waypoints_s, map_waypoints_x, map_waypoints_y);
+    vector<double> next_wp2 = getXY(car_s + end[0]  , end[1]  , map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+    spline_points_x.push_back(next_wp0[0]);
+    spline_points_x.push_back(next_wp1[0]);
+    spline_points_x.push_back(next_wp2[0]);
+
+    spline_points_y.push_back(next_wp0[1]);
+    spline_points_y.push_back(next_wp1[1]);
+    spline_points_y.push_back(next_wp2[1]);
+
+
+  /**
+   * NOTE: The waypoints are converted to local car coordinates first
+   * because keeping global coordinates may result in a spline which
+   * spans large values, and this can lead to adverse effects with point
+   * generation.
    */
+  // Rotating the points clockwise, with the car as the origin
+    for(int i = 0; i < spline_points_x.size(); ++i){
+      double x = spline_points_x[i];
+      double y = spline_points_y[i];
+      x -= ref_x;
+      y -= ref_y;
+
+      double x_ = x * cos(ref_yaw) + y * sin(ref_yaw);
+      double y_ = -x * sin(ref_yaw) + y * cos(ref_yaw);
+
+      spline_points_x[i] = x_;
+      spline_points_y[i] = y_;
+    }
+
+
+    tk::spline s;
+    s.set_points(spline_points_x, spline_points_y);
+
+
+    for (int i = 0; i < path_size; ++i) {
+      next_x_vals.push_back(previous_path_x[i]);
+      next_y_vals.push_back(previous_path_y[i]);
+    }
+
+
+    double target_x = 30.0; // some target in the future
+    double target_y = s(target_x); // some target in the future
+    double target_dist = distance(target_x, target_y, 0.0, 0.0);
+
+
+    // Velocity Control Logic
+    const double MAX_ACCEL = 10;
+    const double MAX_VEL = 49.5 * 0.44704;
+    const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
+    const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
+
+
+    // Velocity Limiter for Lane Keeping
+    double target_vel = MAX_VEL;
+    for(auto &s: sensor_fusion){
+      if(s[6] >= 4 && s[6] <= 8 && s[5] > car_s){
+          double x_map = s[1];
+          double y_map = s[2];
+
+          double veh_dist = distance(x_map, y_map, ref_x, ref_y);
+          if(veh_dist < target_dist){
+            double x_vel = s[3];
+            double y_vel = s[4];
+            double vel_mag = sqrt(x_vel*x_vel + y_vel*y_vel);
+            if(vel_mag < target_vel){
+              target_vel = vel_mag;
+            }
+          }
+      } 
+    }
+
+
+    /** 
+     * Keeping track of the most recent x-point to allow variable velocity increments
+     * at each path point. This is required especially when the car is starting from
+     * idle, where path points may cluster and cause the car to jitter.
+     * NOTE: this does not matter when velocity is constant, but is important to ensure 
+     * smooth motion when velocity can change.
+     */
+    double x_ref = 0;
+    // Path point generation
+    for(int i = 0; i < 50-path_size; ++i){
+      // Velocity based on max acceleration
+      // unless speed limit reached
+      double max_vel_buf = target_vel - VEL_BUFFER;
+      // For speed differences which are smaller than the max 
+      // incremental velocity change
+      double speed_diff = fabs(target_vel-vel);
+      if(speed_diff > VEL_BUFFER){
+        speed_diff = VEL_BUFFER;
+      }
+      // Increase velocity if within limits
+      if(vel <= max_vel_buf){
+        vel += speed_diff;
+      }
+      // Decrease velocity if exceeded limits
+      else if(vel > max_vel_buf){
+        vel -= speed_diff;
+      } 
+      double N = target_dist/(0.02*vel);
+      double point_x = x_ref + target_x/N;
+      double point_y = s(point_x);
+
+      x_ref = point_x;
+
+      // Transforming the points back to map coordinates
+      // Counter-clockwise rotation and translation
+      double point_x_ = point_x*cos(ref_yaw) - point_y*sin(ref_yaw);
+      double point_y_ = point_x*sin(ref_yaw) + point_y*cos(ref_yaw);
+
+      // Translating back to map coordinates
+      point_x_ += ref_x;
+      point_y_ += ref_y;
+
+      next_x_vals.push_back(point_x_);
+      next_y_vals.push_back(point_y_);
+
+    }
+    vector<vector<double>> trajectory = {next_x_vals, next_y_vals};
+    return trajectory;
+}
+
+/**
+ * @param vehicle_telemetry - ego vehicle map x, map y, velocity, heading, Frenet s, Frenet d
+ * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
+ */
+vector<State> bestTrajectory(const vector<double> &vehicle_telemetry, const vector<vector<double>> &sensor_fusion){
 
 
   // Find the next states for the vehicle
