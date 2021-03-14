@@ -436,7 +436,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 
 
     // Velocity Limiter for Lane Keeping
-    vector<double> target = {target_dist, 6};
+    vector<double> target = {target_dist, end[1]};
     double target_vel = getTargetVelocity(sensor_fusion, ref_x, ref_y, car_s, target);
 
 
@@ -545,7 +545,7 @@ vector<vector<double>> bestTrajectory(double &vel,
     switch(s){
       case(State::KL):
         lane = 0;
-        cost = 0;
+        cost = 1;
         break;
       case(State::LCL):
         lane = -1;
@@ -553,7 +553,7 @@ vector<vector<double>> bestTrajectory(double &vel,
         break;
       case(State::LCR):
         lane = 1;
-        cost = 1;
+        cost = 0;
         break;
       default:
         lane = 0;
@@ -561,6 +561,13 @@ vector<vector<double>> bestTrajectory(double &vel,
     }
 
     double target_d = vehicle_telemetry[4] + 4*lane;
+    // Additional logic to ensure valid lane states
+    if(target_d >= 12){
+      target_d = 10;
+    }
+    else if(target_d <= 0){
+      target_d = 2;
+    }
     vector<double> start = {30, target_d};
     vector<double> end = {90, target_d};
 
