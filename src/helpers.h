@@ -14,6 +14,12 @@ using Eigen::MatrixXd;
 
 enum class State {KL, LCR, LCL};
 
+// Velocity Control Constants
+const double MAX_ACCEL = 10;
+const double MAX_VEL = 49.5 * 0.44704;
+const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
+const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 //   else the empty string "" will be returned.
@@ -252,13 +258,6 @@ vector<State> validStates(const double &car_d){
 double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const double &ref_x, const double &ref_y,
                                             const double &car_s, const vector<double> &target){
 
-  // Velocity Control Logic
-    const double MAX_ACCEL = 10;
-    const double MAX_VEL = 49.5 * 0.44704;
-    const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
-    const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
-
-
     // Find all vehicles in the target lane
     vector<vector<double>> target_vehicles;
     int target_d = floor(target[1]/4);
@@ -427,14 +426,6 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
     double target_y = s(target_x); // some target in the future
     double target_dist = distance(target_x, target_y, 0.0, 0.0);
 
-
-    // Velocity Control Logic
-    const double MAX_ACCEL = 10;
-    const double MAX_VEL = 49.5 * 0.44704;
-    const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
-    const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
-
-
     // Velocity Limiter for Lane Keeping
     vector<double> target = {target_dist, end[1]};
     double target_vel = getTargetVelocity(sensor_fusion, ref_x, ref_y, car_s, target);
@@ -491,26 +482,61 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 }
 
 /**
- * Cost functions
+ * Cost functions --------------------------------------------------------------------------
  */ 
 
 /**
    * Binary cost function which penalizes collisions
    * @param trajectory vector of pair of {x,y} trajectory points visited every 0.02 seconds
-   * @param target_vehicles vector of {distance, Frenet s, velocity} for the nearest vehicles (either nearest ahead and/or behind)
+   * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
   */ 
-double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &target_vehicles){
+double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion){
   double cost = 0;
+  double trajectory_size = trajectory.size();
+  double timestep = 0.02; // Simulator update rate
+  const double MIN_COLLISION_RADIUS = 1.5;
+
+  vector<double> distances;
+  
+  // Check all surrounding vehicles
+  for(const auto &s: sensor_fusion){
+    // Across all timesteps along the trajectory
+    double x_map = s[1];
+    double y_map = s[2];
+    double x_vel = s[3];
+    double y_vel = s[4];
+    for(int t = 0; t < trajectory_size; ++t){
+      x_map += timestep*x_vel;
+      y_map += timestep*y_vel;
+      // Check for the closest approach to the trajectory
+      double dist = distance(x_map, y_map, trajectory[t][0], trajectory[t][1]);
+      // std::cout << "[x,y]: [" << x_map << "," << y_map << "]" << std::endl;
+      // std::cout << "Distance: " << dist << std::endl;
+      distances.push_back(dist);
+      // And if there is a collision, return a cost of 1
+      if(dist < MIN_COLLISION_RADIUS){
+        cost = 1.0;
+        return cost;
+      }
+    }
+  }
+  // Sort by smallest distance
+  if(distances.size() > 1){
+      std::sort(distances.begin(), distances.end(), 
+      [](const double &d_a, const double & d_b) 
+      { return d_a < d_b; });
+  }
+  double min_dist = *std::min_element(distances.begin(),distances.end());
+  std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
   return cost;
 }
 
-double efficiencyCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &target_vehicles){
-  double cost = 0;
-  return cost;
+double efficiencyCost(const double &target_velocity){
+  return (MAX_VEL-target_velocity)/MAX_VEL;
 }
 
 /**
- * End cost functions
+ * End cost functions ------------------------------------------------------------------------
  */ 
 
 /**
@@ -581,6 +607,11 @@ vector<vector<double>> bestTrajectory(double &vel,
     end_velocities.push_back(vel_);
     costs.push_back(cost);
      
+  }
+
+  for(const auto &t: valid_trajectories){
+    double collision_cost = collisionCost(t, sensor_fusion);
+    std::cout << "Collision Costs: " << collision_cost << std::endl;
   }
 
   int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
