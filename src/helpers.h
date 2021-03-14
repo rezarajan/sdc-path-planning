@@ -491,10 +491,41 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 }
 
 /**
- * @param vehicle_telemetry - ego vehicle map x, map y, velocity, heading, Frenet s, Frenet d
+ * Cost functions
+ */ 
+
+/**
+   * Binary cost function which penalizes collisions
+   * @param trajectory vector of pair of {x,y} trajectory points visited every 0.02 seconds
+   * @param target_vehicles vector of {distance, Frenet s, velocity} for the nearest vehicles (either nearest ahead and/or behind)
+  */ 
+double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &target_vehicles){
+  double cost = 0;
+  return cost;
+}
+
+double efficiencyCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &target_vehicles){
+  double cost = 0;
+  return cost;
+}
+
+/**
+ * End cost functions
+ */ 
+
+/**
+ * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
  * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
  */
-vector<State> bestTrajectory(const vector<double> &vehicle_telemetry, const vector<vector<double>> &sensor_fusion){
+vector<vector<double>> bestTrajectory(double &vel,
+                              const vector<double> &previous_path_x,
+                              const vector<double> &previous_path_y,
+                              const vector<vector<double>> &sensor_fusion, 
+                              const vector<double> &end_path,
+                              const vector<double> &vehicle_telemetry, 
+                              const vector<double> &map_waypoints_s,
+                              const vector<double> &map_waypoints_x,
+                              const vector<double> &map_waypoints_y){
 
 
   // Find the next states for the vehicle
@@ -504,9 +535,53 @@ vector<State> bestTrajectory(const vector<double> &vehicle_telemetry, const vect
    * TODO: Generate trajectories for each valid state and find the cheapest one (based on cost functions)
    * TODO: Create cost functions for each trajectory
    */
-  State best_state = State::KL;
-  vector<State> best_states;
-  return best_states;
+  vector<vector<vector<double>>> valid_trajectories;
+  vector<double> end_velocities;
+  vector<double> costs;
+
+  for(const auto &s: valid_states){
+    int lane = 0;
+    double cost = 0;
+    switch(s){
+      case(State::KL):
+        lane = 0;
+        cost = 0;
+        break;
+      case(State::LCL):
+        lane = -1;
+        cost = 1;
+        break;
+      case(State::LCR):
+        lane = 1;
+        cost = 1;
+        break;
+      default:
+        lane = 0;
+        break;
+    }
+
+    double target_d = vehicle_telemetry[4] + 4*lane;
+    vector<double> start = {30, target_d};
+    vector<double> end = {90, target_d};
+
+    // Temporary velocity used for incremental velocity update
+    double vel_ = vel;
+    vector<vector<double>> trajectory_ = generateTrajectory(start, end, vel, previous_path_x, previous_path_y, 
+                                                    sensor_fusion, end_path, vehicle_telemetry, 
+                                                    map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+    valid_trajectories.push_back(trajectory_);
+    end_velocities.push_back(vel_);
+    costs.push_back(cost);
+     
+  }
+
+  int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
+
+
+  vector<vector<double>> trajectory = valid_trajectories[minElementIndex];
+  vel = end_velocities[minElementIndex]; // updating internally tracked velocity corresponding to selected trajectory
+  return trajectory;
 }
 
 #endif  // HELPERS_H

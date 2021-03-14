@@ -100,14 +100,17 @@ int main() {
            *   sequentially every .02 seconds
            */
 
-        vector<double> start = {30, 6};
-        vector<double> end = {90, 6};
+        // vector<double> start = {30, 6};
+        // vector<double> end = {90, 6};
         vector<double> previous_path_end = {end_path_s, end_path_d};
         vector<double> vehicle_telemetry = {car_x, car_y, car_yaw, car_s, car_d};
 
-        vector<vector<double>> trajectory = generateTrajectory(start, end, vel, previous_path_x, previous_path_y, 
+        vector<vector<double>> trajectory = bestTrajectory(vel, previous_path_x, previous_path_y, 
                           sensor_fusion, previous_path_end, vehicle_telemetry, 
                           map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        // vector<vector<double>> trajectory = generateTrajectory(start, end, vel, previous_path_x, previous_path_y, 
+        //                   sensor_fusion, previous_path_end, vehicle_telemetry, 
+        //                   map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
 
           msgJson["next_x"] = trajectory[0];
