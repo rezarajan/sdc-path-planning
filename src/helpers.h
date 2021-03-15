@@ -223,7 +223,7 @@ double toEquation(vector<double> &jmt, double time){
 vector<State> validStates(const double &car_d){
   // Find the next states for the vehicle
   vector<State> valid_states;
-  switch(int(car_d/4)) {
+  switch((int)floor(car_d/4)) {
     case(0):
       // If in leftmost lane, then Keep Lane or Lane Change Right
       valid_states = {State::KL, State::LCR};
@@ -526,13 +526,17 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
       [](const double &d_a, const double & d_b) 
       { return d_a < d_b; });
   }
-  double min_dist = *std::min_element(distances.begin(),distances.end());
-  std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
+  // double min_dist = *std::min_element(distances.begin(),distances.end());
+  // std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
   return cost;
 }
 
 double efficiencyCost(const double &target_velocity){
   return (MAX_VEL-target_velocity)/MAX_VEL;
+}
+
+double laneChangeCost(const int &current_lane, const int &target_lane){
+  return current_lane == target_lane ? 0.0 : 1.0;
 }
 
 /**
@@ -555,7 +559,7 @@ vector<vector<double>> bestTrajectory(double &vel,
 
 
   // Find the next states for the vehicle
-  vector<State> valid_states = validStates(vehicle_telemetry[6]);
+  vector<State> valid_states = validStates(vehicle_telemetry[4]);
 
   /**
    * TODO: Generate trajectories for each valid state and find the cheapest one (based on cost functions)
@@ -563,6 +567,7 @@ vector<vector<double>> bestTrajectory(double &vel,
    */
   vector<vector<vector<double>>> valid_trajectories;
   vector<double> end_velocities;
+  vector<int> target_lanes;
   vector<double> costs;
 
   for(const auto &s: valid_states){
@@ -570,14 +575,17 @@ vector<vector<double>> bestTrajectory(double &vel,
     double cost = 0;
     switch(s){
       case(State::KL):
+        std::cout << "Checking State [Keep Lane] " << std::endl;
         lane = 0;
         cost = 0;
         break;
       case(State::LCL):
+        std::cout << "Checking State [Lane Change Left] " << std::endl;
         lane = -1;
         cost = 1;
         break;
       case(State::LCR):
+        std::cout << "Checking State [Lane Change Right] " << std::endl;
         lane = 1;
         cost = 1;
         break;
@@ -605,6 +613,7 @@ vector<vector<double>> bestTrajectory(double &vel,
 
     valid_trajectories.push_back(trajectory_);
     end_velocities.push_back(vel_);
+    target_lanes.push_back((int)floor(target_d/4));
     costs.push_back(cost);
      
   }
@@ -613,6 +622,17 @@ vector<vector<double>> bestTrajectory(double &vel,
   //   double collision_cost = collisionCost(t, sensor_fusion);
   //   std::cout << "Collision Costs: " << collision_cost << std::endl;
   // }
+  for(int i = 0; i < valid_trajectories.size(); ++i){
+    double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion);
+    double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,3);
+    double lane_change_cost = laneChangeCost((int)floor(vehicle_telemetry[4]/4), target_lanes[i]);
+    double total_cost = collision_cost + efficieny_cost + lane_change_cost;
+    std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
+    std::cout << "Collision Cost: " << collision_cost << std::endl;
+    std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
+    std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
+    std::cout << "Total Cost: " << total_cost << std::endl;
+  }
 
   int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
 
