@@ -614,14 +614,10 @@ vector<vector<double>> bestTrajectory(double &vel,
     valid_trajectories.push_back(trajectory_);
     end_velocities.push_back(vel_);
     target_lanes.push_back((int)floor(target_d/4));
-    costs.push_back(cost);
+    // costs.push_back(cost);
      
   }
 
-  // for(const auto &t: valid_trajectories){
-  //   double collision_cost = collisionCost(t, sensor_fusion);
-  //   std::cout << "Collision Costs: " << collision_cost << std::endl;
-  // }
   for(int i = 0; i < valid_trajectories.size(); ++i){
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion);
     double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,3);
@@ -632,6 +628,7 @@ vector<vector<double>> bestTrajectory(double &vel,
     std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
     std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
     std::cout << "Total Cost: " << total_cost << std::endl;
+    costs.push_back(total_cost);
   }
 
   int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
