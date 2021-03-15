@@ -571,7 +571,7 @@ vector<vector<double>> bestTrajectory(double &vel,
     switch(s){
       case(State::KL):
         lane = 0;
-        cost = 1;
+        cost = 0;
         break;
       case(State::LCL):
         lane = -1;
@@ -579,7 +579,7 @@ vector<vector<double>> bestTrajectory(double &vel,
         break;
       case(State::LCR):
         lane = 1;
-        cost = 0;
+        cost = 1;
         break;
       default:
         lane = 0;
@@ -599,7 +599,7 @@ vector<vector<double>> bestTrajectory(double &vel,
 
     // Temporary velocity used for incremental velocity update
     double vel_ = vel;
-    vector<vector<double>> trajectory_ = generateTrajectory(start, end, vel, previous_path_x, previous_path_y, 
+    vector<vector<double>> trajectory_ = generateTrajectory(start, end, vel_, previous_path_x, previous_path_y, 
                                                     sensor_fusion, end_path, vehicle_telemetry, 
                                                     map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
@@ -609,10 +609,10 @@ vector<vector<double>> bestTrajectory(double &vel,
      
   }
 
-  for(const auto &t: valid_trajectories){
-    double collision_cost = collisionCost(t, sensor_fusion);
-    std::cout << "Collision Costs: " << collision_cost << std::endl;
-  }
+  // for(const auto &t: valid_trajectories){
+  //   double collision_cost = collisionCost(t, sensor_fusion);
+  //   std::cout << "Collision Costs: " << collision_cost << std::endl;
+  // }
 
   int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
 
