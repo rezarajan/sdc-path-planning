@@ -515,9 +515,11 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
   */ 
 double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion, const vector<double> &vehicle_telemetry, const int &lane){
   double cost = 0;
-  double trajectory_size = trajectory.size();
+  double trajectory_size = trajectory[0].size();
   double timestep = 0.02; // Simulator update rate
   const double MIN_COLLISION_RADIUS = 15;
+
+  // std::cout << "Trajectory Size: " << trajectory_size << std::endl;
 
   vector<double> distances;
   // std::cout << "Calculating Collision Costs" << std::endl;
@@ -546,44 +548,47 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
 
     double x_ref = vehicle_telemetry[0];
     double y_ref = vehicle_telemetry[1];
-    double dist = distance(x_map,y_map,x_ref,y_ref);
+    // double dist = distance(x_map,y_map,x_ref,y_ref);
     if((current_d != lane) && (s_d == lane)){
       // if(s_d == 1){
       //     std::cout << "Distance [" << s_d << "]:" << dist << std::endl;
       // }
       // std::cout << "Detected Vehicle on Lane: " << s_d << std::endl;
-      // for(int t = 0; t < trajectory_size; ++t){
-      //   x_map += timestep*x_vel;
-      //   y_map += timestep*y_vel;
+      for(int t = 0; t < trajectory_size; ++t){
+        x_map += timestep*x_vel;
+        y_map += timestep*y_vel;
       //   s_s += timestep*vel;
       //   // Check for the closest approach to the trajectory
-      //   double dist = distance(x_map, y_map, trajectory[t][0], trajectory[t][1])/100;
+        double dist = distance(x_map, y_map, trajectory[0][t], trajectory[1][t]);
+        // std::cout << "Distance: " << dist << std::endl;
       //   // double dist = fabs(s_s - car_s);
       //   // std::cout << "Frenet Distance: " << dist << std::endl;
       //   // std::cout << "Map (Original) [x,y]: [" << x_map_ << "," << y_map_ << "]" << std::endl;
-      //   // std::cout << "Map [x,y]: [" << x_map << "," << y_map << "]" << std::endl;
-      //   // std::cout << "Trajectory [x,y]: [" << trajectory[t][0] << "," << trajectory[t][1] << "]" << std::endl;
+        // std::cout << "Map [x,y]: [" << x_map << "," << y_map << "]" << std::endl;
+        // std::cout << "Trajectory [x,y]: [" << trajectory[t][0] << "," << trajectory[t][1] << "]" << std::endl;
+        // std::cout << "Reference [x,y]: [" << x_ref << "," << y_ref << "]" << std::endl;
       //   // std::cout << "Velocities [x,y]: [" << x_vel << "," << y_vel << "]" << std::endl;
       //   if(s_d == 1){
-      //     std::cout << "Distance [" << s_d << "]:" << dist << std::endl;
+        // std::cout << "Distance [" << s_d << "]:" << dist << std::endl;
+        // std::cout << "Distance (Ref)[" << s_d << "]:" << dist_ << std::endl;
       //   }
-        // distances.push_back(dist);
+        distances.push_back(dist);
       //   // And if there is a collision, return a cost of 1
         if(dist < MIN_COLLISION_RADIUS){
           cost = 1.0;
           return cost;
         }
-      // }
+      }
     }
   }
-  // // Sort by smallest distance
-  // if(distances.size() > 1){
-  //     std::sort(distances.begin(), distances.end(), 
-  //     [](const double &d_a, const double & d_b) 
-  //     { return d_a < d_b; });
-  // }
-  // double min_dist = *std::min_element(distances.begin(),distances.end());
-  // std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
+  // Sort by smallest distance
+  if(distances.size() > 1){
+    std::sort(distances.begin(), distances.end(), 
+    [](const double &d_a, const double & d_b) 
+    { return d_a < d_b; });
+    double min_dist = *std::min_element(distances.begin(),distances.end());
+    std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
+  }
   return cost;
 }
 
