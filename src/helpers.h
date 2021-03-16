@@ -220,10 +220,10 @@ double toEquation(vector<double> &jmt, double time){
  * 
  * This function returns the next valid lane change states for the ego vehicle
  */ 
-vector<State> validStates(const double &car_d){
+vector<State> validStates(const int &lane){
   // Find the next states for the vehicle
   vector<State> valid_states;
-  switch((int)floor(car_d/4)) {
+  switch(lane) {
     case(0):
       // If in leftmost lane, then Keep Lane or Lane Change Right
       valid_states = {State::KL, State::LCR};
@@ -576,7 +576,7 @@ double laneChangeCost(const int &current_lane, const int &target_lane){
  * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
  * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
  */
-vector<vector<double>> bestTrajectory(double &vel,
+vector<vector<double>> bestTrajectory(double &vel, int &lane,
                               const vector<double> &previous_path_x,
                               const vector<double> &previous_path_y,
                               const vector<vector<double>> &sensor_fusion, 
@@ -588,7 +588,8 @@ vector<vector<double>> bestTrajectory(double &vel,
 
 
   // Find the next states for the vehicle
-  vector<State> valid_states = validStates(vehicle_telemetry[4]);
+  vector<State> valid_states = validStates(lane);
+  // vector<State> valid_states = validStates(vehicle_telemetry[4]);
 
   /**
    * TODO: Generate trajectories for each valid state and find the cheapest one (based on cost functions)
@@ -600,37 +601,38 @@ vector<vector<double>> bestTrajectory(double &vel,
   vector<double> costs;
 
   for(const auto &s: valid_states){
-    int lane = 0;
+    int lane_change = 0;
     double cost = 0;
     switch(s){
       case(State::KL):
         std::cout << "Checking State [Keep Lane] " << std::endl;
-        lane = 0;
+        lane_change = 0;
         cost = 0;
         break;
       case(State::LCL):
         std::cout << "Checking State [Lane Change Left] " << std::endl;
-        lane = -1;
+        lane_change = -1;
         cost = 1;
         break;
       case(State::LCR):
         std::cout << "Checking State [Lane Change Right] " << std::endl;
-        lane = 1;
+        lane_change = 1;
         cost = 1;
         break;
       default:
-        lane = 0;
+        lane_change = 0;
         break;
     }
 
-    double target_d = (int)floor((vehicle_telemetry[4]-1)/4);
+    // double target_d = (int)floor((vehicle_telemetry[4]-1)/4);
+    double target_d = (double) lane;
     // double target_d = ((int)floor(vehicle_telemetry[4]/4) + lane)*4 + 2;
     if(target_d < 0){
       target_d = 0;
     }
-    double target_d_ = target_d + lane; // to preserve the lane number only for storing
+    double target_d_ = target_d + lane_change; // to preserve the lane number only for storing
 
-    target_d = (target_d + lane)*4 + 2;
+    target_d = (target_d + lane_change)*4 + 2;
 
     // Additional logic to ensure valid lane states
     if(target_d >= 12){
@@ -658,7 +660,8 @@ vector<vector<double>> bestTrajectory(double &vel,
   for(int i = 0; i < valid_trajectories.size(); ++i){
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry)*pow(10,2);
     double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,2);
-    double lane_change_cost = laneChangeCost((int)floor((vehicle_telemetry[4]-1)/4), target_lanes[i])*1.0;
+    double lane_change_cost = laneChangeCost(lane, target_lanes[i])*1.0;
+    // double lane_change_cost = laneChangeCost((int)floor((vehicle_telemetry[4]-1)/4), target_lanes[i])*1.0;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost;
     // std::cout << "Trajectory [" << i << "] Velocity:" << end_velocities[i] << std::endl;
     std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
@@ -674,6 +677,7 @@ vector<vector<double>> bestTrajectory(double &vel,
 
   vector<vector<double>> trajectory = valid_trajectories[minElementIndex];
   vel = end_velocities[minElementIndex]; // updating internally tracked velocity corresponding to selected trajectory
+  lane = target_lanes[minElementIndex];
   return trajectory;
 }
 
