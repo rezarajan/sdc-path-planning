@@ -312,7 +312,7 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
         // Set a minimum target velocity if there is a car ahead, and in range of target distance
         if((target_vehicles[i][2] <= MAX_VEL) && (target_vehicles[i][0] < target[0])){
           target_velocity = target_vehicles[i][2];
-          std::cout << "Target Velocity for Lane [" << target_d << "]: " << target_velocity << std::endl;
+          // std::cout << "Target Velocity for Lane [" << target_d << "]: " << target_velocity << std::endl;
         }
         car_ahead = true;
       }
@@ -503,14 +503,14 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 /**
    * Binary cost function which penalizes collisions
    * @param trajectory vector of pair of {x,y} trajectory points visited every 0.02 seconds
-   * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
+   * @param sensor_fusion - surrounding vehicles id, map x, map y, vel x, vel y, Frenet s, Frenet d
    * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
   */ 
 double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion, const vector<double> &vehicle_telemetry){
   double cost = 0;
   double trajectory_size = trajectory.size();
   double timestep = 0.02; // Simulator update rate
-  const double MIN_COLLISION_RADIUS = 1.5;
+  const double MIN_COLLISION_RADIUS = 20;
 
   vector<double> distances;
   // std::cout << "Calculating Collision Costs" << std::endl;
@@ -523,12 +523,18 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
     double y_map = s[2];
     double x_vel = s[3];
     double y_vel = s[4];
+    double vel = sqrt(x_vel*x_vel + y_vel*y_vel);
+    double s_s = s[5];
+    double car_s = vehicle_telemetry[3];
 
     for(int t = 0; t < trajectory_size; ++t){
       x_map += timestep*x_vel;
       y_map += timestep*y_vel;
+      s_s += timestep*vel;
       // Check for the closest approach to the trajectory
-      double dist = distance(x_map, y_map, trajectory[t][0], trajectory[t][1])/100;
+      // double dist = distance(x_map, y_map, trajectory[t][0], trajectory[t][1])/100;
+      double dist = fabs(s_s - car_s);
+      // std::cout << "Frenet Distance: " << dist << std::endl;
       // std::cout << "Map (Original) [x,y]: [" << x_map_ << "," << y_map_ << "]" << std::endl;
       // std::cout << "Map [x,y]: [" << x_map << "," << y_map << "]" << std::endl;
       // std::cout << "Trajectory [x,y]: [" << trajectory[t][0] << "," << trajectory[t][1] << "]" << std::endl;
@@ -549,7 +555,7 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
       { return d_a < d_b; });
   }
   double min_dist = *std::min_element(distances.begin(),distances.end());
-  std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
+  // std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
   return cost;
 }
 
@@ -558,6 +564,7 @@ double efficiencyCost(const double &target_velocity){
 }
 
 double laneChangeCost(const int &current_lane, const int &target_lane){
+  std::cout << "Current Lane: " << current_lane << " vs Target Lane: " << target_lane << std::endl;
   return current_lane == target_lane ? 0.0 : 1.0;
 }
 
@@ -617,11 +624,11 @@ vector<vector<double>> bestTrajectory(double &vel,
     }
 
     double target_d = (int)floor((vehicle_telemetry[4]-1)/4);
-    double target_d_ = target_d; // to preserve the lane number only for storing
     // double target_d = ((int)floor(vehicle_telemetry[4]/4) + lane)*4 + 2;
     if(target_d < 0){
       target_d = 0;
     }
+    double target_d_ = target_d + lane; // to preserve the lane number only for storing
 
     target_d = (target_d + lane)*4 + 2;
 
@@ -651,13 +658,13 @@ vector<vector<double>> bestTrajectory(double &vel,
   for(int i = 0; i < valid_trajectories.size(); ++i){
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry)*pow(10,2);
     double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,2);
-    double lane_change_cost = laneChangeCost((int)floor((vehicle_telemetry[4]-1)/4), target_lanes[i])*3.0;
+    double lane_change_cost = laneChangeCost((int)floor((vehicle_telemetry[4]-1)/4), target_lanes[i])*1.0;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost;
-    // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
-    std::cout << "Trajectory [" << i << "] Velocity:" << end_velocities[i] << std::endl;
-    // std::cout << "Collision Cost: " << collision_cost << std::endl;
-    // std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
-    // std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
+    // std::cout << "Trajectory [" << i << "] Velocity:" << end_velocities[i] << std::endl;
+    std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
+    std::cout << "Collision Cost: " << collision_cost << std::endl;
+    std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
+    std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
     std::cout << "Total Cost: " << total_cost << std::endl;
     costs.push_back(total_cost);
   }
