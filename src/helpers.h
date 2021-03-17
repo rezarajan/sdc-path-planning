@@ -19,6 +19,7 @@ const double MAX_ACCEL = 10;
 const double MAX_VEL = 49.5 * 0.44704;
 const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
 const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
+const double TIMESTEP = 0.02; // Simulator update rate
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -165,58 +166,9 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   return {x,y};
 }
 
-vector<double> JMT(vector<double> &start, vector<double> &end, double T) {
-  /**
-   * Calculate the Jerk Minimizing Trajectory that connects the initial state
-   * to the final state in time T.
-   *
-   * @param start - the vehicles start location given as a length three array
-   *   corresponding to initial values of [s, s_dot, s_double_dot]
-   * @param end - the desired end state for vehicle. Like "start" this is a
-   *   length three array.
-   * @param T - The duration, in seconds, over which this maneuver should occur.
-   *
-   * @output an array of length 6, each value corresponding to a coefficent in 
-   *   the polynomial:
-   *   s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
-   *
-   * EXAMPLE
-   *   > JMT([0, 10, 0], [10, 10, 0], 1)
-   *     [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
-   */
-  MatrixXd A = MatrixXd(3, 3);
-  A << T*T*T, T*T*T*T, T*T*T*T*T,
-       3*T*T, 4*T*T*T,5*T*T*T*T,
-       6*T, 12*T*T, 20*T*T*T;
-    
-  MatrixXd B = MatrixXd(3,1);     
-  B << end[0]-(start[0]+start[1]*T+.5*start[2]*T*T),
-       end[1]-(start[1]+start[2]*T),
-       end[2]-start[2];
-          
-  MatrixXd Ai = A.inverse();
-  
-  MatrixXd C = Ai*B;
-  
-  vector <double> result = {start[0], start[1], .5*start[2]};
-
-  for(int i = 0; i < C.size(); ++i) {
-    result.push_back(C.data()[i]);
-  }
-
-  return result;
-}
-
-double toEquation(vector<double> &jmt, double time){
-  double total = 0.0;
-  for(int i = 0; i < jmt.size(); ++i){
-    total += jmt.data()[i] * pow(time,i);
-  }
-  return total;
-}
 
 /**
- * @param car_d - ego vehicle Frenet d value
+ * @param lane - internally tracked lane number
  * 
  * This function returns the next valid lane change states for the ego vehicle
  */ 
@@ -267,14 +219,12 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
     target_d = target_d*4 + 2;
 
     for(const auto &s: sensor_fusion){
-      // std::cout << "Trajectory Searching D " << target[1] << " (traj) vs " << s[6] << "(sensor)" << std::endl;
       int s_d = (int)floor((s[6] - 1)/4);
       if(s_d < 0){
         s_d = 0;
       }
       s_d = s_d*4 + 2;
 
-      // std::cout << "Trajectory Searching D " << target_d << " (traj) vs " << s_d << "(sensor)" << std::endl;
       if(s_d == target_d){
         double x_map = s[1];
         double y_map = s[2];
@@ -295,10 +245,6 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
     }
 
     // Find the two closest vehicles, each either ahead or behind the ego vehicle
-    /**
-     *  TODO: move target id caching to another function for collision checking.
-     *        This is not required here.
-     */ 
     bool car_ahead = false;
     bool car_behind = false;
     vector<int> target_ids;
@@ -319,7 +265,6 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
               target_velocity -= VEL_BUFFER;
             }
           }
-          // std::cout << "Target Velocity for Lane [" << target_d << "]: " << target_velocity << std::endl;
         }
         car_ahead = true;
       }
@@ -336,6 +281,7 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
    * Generates a spline given the start and end positions in Frenet coordinates
    * @param start starting Frenet coordinates as a vector of {s, d} relative to the ego vehicle
    * @param end end Frenet coordinates as a vector of {s, d} relative to the ego vehicle
+   * @param vel internally tracked velocity of the ego vehicle 
    * @param previous_path previous path points to include in trajectory generation in map {x,y} coordinates
    * @param end_path the Frenet coordinates of the end of the previous path {s,d}
    * @param vehicle_telemetry ego vehicle map x, map y, heading, Frenet s, Frenet d
@@ -371,7 +317,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
      * sequentially every .02 seconds
      */
 
-    // Points of reference from car coordinates to map coordinates
+    // Points of reference in map coordinates
     double ref_x;
     double ref_y;
     double ref_yaw;
@@ -419,7 +365,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
    * spans large values, and this can lead to adverse effects with point
    * generation.
    */
-  // Rotating the points clockwise, with the car as the origin
+  // Rotating the points clockwise, setting the ego vehicle as the origin
     for(int i = 0; i < spline_points_x.size(); ++i){
       double x = spline_points_x[i];
       double y = spline_points_y[i];
@@ -433,7 +379,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
       spline_points_y[i] = y_;
     }
 
-
+    // Generate spline using the target points
     tk::spline s;
     s.set_points(spline_points_x, spline_points_y);
 
@@ -448,7 +394,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
     double target_y = s(target_x); // some target in the future
     double target_dist = distance(target_x, target_y, 0.0, 0.0);
 
-    // Velocity Limiter for Lane Keeping
+    // Velocity Limiter
     vector<double> target = {target_dist, end[1]};
     double target_vel = getTargetVelocity(sensor_fusion, ref_x, ref_y, vehicle_telemetry[3], target);
 
@@ -464,7 +410,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
     // Path point generation
     for(int i = 0; i < 50-path_size; ++i){
       // Velocity based on max acceleration
-      // unless speed limit reached
+      // unless target speed reached
       double max_vel_buf = target_vel - VEL_BUFFER;
       // For speed differences which are smaller than the max 
       // incremental velocity change
@@ -480,7 +426,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
       else if(vel > max_vel_buf){
         vel -= speed_diff;
       } 
-      double N = target_dist/(0.02*vel);
+      double N = target_dist/(TIMESTEP*vel);
       double point_x = x_ref + target_x/N;
       double point_y = s(point_x);
 
@@ -516,78 +462,44 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion, const vector<double> &vehicle_telemetry, const int &lane){
   double cost = 0;
   double trajectory_size = trajectory[0].size();
-  double timestep = 0.02; // Simulator update rate
   const double MIN_COLLISION_RADIUS = 15;
 
-  // std::cout << "Trajectory Size: " << trajectory_size << std::endl;
-
   vector<double> distances;
-  // std::cout << "Calculating Collision Costs" << std::endl;
   
+  // Get the current ego vehicle lane (which may be different than the target internally tracked lane)
+  int current_d = (int)floor((vehicle_telemetry[4] - 1)/4);
+  if(current_d < 0){
+    current_d = 0;
+  }
   // Check all surrounding vehicles
   for(const auto &s: sensor_fusion){
     // Across all timesteps along the trajectory
-    // std::cout << "Checking Vehicle Collision" << std::endl;
     double x_map = s[1];
     double y_map = s[2];
     double x_vel = s[3];
     double y_vel = s[4];
     double vel = sqrt(x_vel*x_vel + y_vel*y_vel);
-    double s_s = s[5];
-    double car_s = vehicle_telemetry[3];
 
-    int current_d = (int)floor((vehicle_telemetry[4] - 1)/4);
-    if(current_d < 0){
-      current_d = 0;
-    }
 
     int s_d = (int)floor((s[6] - 1)/4);
     if(s_d < 0){
       s_d = 0;
     }
-
-    double x_ref = vehicle_telemetry[0];
-    double y_ref = vehicle_telemetry[1];
-    // double dist = distance(x_map,y_map,x_ref,y_ref);
     if((current_d != lane) && (s_d == lane)){
-      // if(s_d == 1){
-      //     std::cout << "Distance [" << s_d << "]:" << dist << std::endl;
-      // }
-      // std::cout << "Detected Vehicle on Lane: " << s_d << std::endl;
+
       for(int t = 0; t < trajectory_size; ++t){
-        x_map += timestep*x_vel;
-        y_map += timestep*y_vel;
-      //   s_s += timestep*vel;
-      //   // Check for the closest approach to the trajectory
+        x_map += TIMESTEP*x_vel;
+        y_map += TIMESTEP*y_vel;
+        // Check for the closest approach to the trajectory
         double dist = distance(x_map, y_map, trajectory[0][t], trajectory[1][t]);
-        // std::cout << "Distance: " << dist << std::endl;
-      //   // double dist = fabs(s_s - car_s);
-      //   // std::cout << "Frenet Distance: " << dist << std::endl;
-      //   // std::cout << "Map (Original) [x,y]: [" << x_map_ << "," << y_map_ << "]" << std::endl;
-        // std::cout << "Map [x,y]: [" << x_map << "," << y_map << "]" << std::endl;
-        // std::cout << "Trajectory [x,y]: [" << trajectory[t][0] << "," << trajectory[t][1] << "]" << std::endl;
-        // std::cout << "Reference [x,y]: [" << x_ref << "," << y_ref << "]" << std::endl;
-      //   // std::cout << "Velocities [x,y]: [" << x_vel << "," << y_vel << "]" << std::endl;
-      //   if(s_d == 1){
-        // std::cout << "Distance [" << s_d << "]:" << dist << std::endl;
-        // std::cout << "Distance (Ref)[" << s_d << "]:" << dist_ << std::endl;
-      //   }
         distances.push_back(dist);
-      //   // And if there is a collision, return a cost of 1
+        // And if there is a collision, return a cost of 1
         if(dist < MIN_COLLISION_RADIUS){
           cost = 1.0;
           return cost;
         }
       }
     }
-  }
-  // Sort by smallest distance
-  if(distances.size() > 1){
-    std::sort(distances.begin(), distances.end(), 
-    [](const double &d_a, const double & d_b) 
-    { return d_a < d_b; });
-    double min_dist = *std::min_element(distances.begin(),distances.end());
-    std::cout << "Min Trajectory Distance: " << min_dist << std::endl;
   }
   return cost;
 }
@@ -597,7 +509,6 @@ double efficiencyCost(const double &target_velocity){
 }
 
 double laneChangeCost(const int &current_lane, const int &target_lane){
-  // std::cout << "Current Lane: " << current_lane << " vs Target Lane: " << target_lane << std::endl;
   return current_lane == target_lane ? 0.0 : 1.0;
 }
 
@@ -622,12 +533,7 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
 
   // Find the next states for the vehicle
   vector<State> valid_states = validStates(lane);
-  // vector<State> valid_states = validStates(vehicle_telemetry[4]);
 
-  /**
-   * TODO: Generate trajectories for each valid state and find the cheapest one (based on cost functions)
-   * TODO: Create cost functions for each trajectory
-   */
   vector<vector<vector<double>>> valid_trajectories;
   vector<double> end_velocities;
   vector<int> target_lanes;
@@ -635,38 +541,29 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
 
   for(const auto &s: valid_states){
     int lane_change = 0;
-    double cost = 0;
     switch(s){
       case(State::KL):
-        // std::cout << "Checking State [Keep Lane] " << std::endl;
         lane_change = 0;
-        cost = 0;
         break;
       case(State::LCL):
-        // std::cout << "Checking State [Lane Change Left] " << std::endl;
         lane_change = -1;
-        cost = 1;
         break;
       case(State::LCR):
-        // std::cout << "Checking State [Lane Change Right] " << std::endl;
         lane_change = 1;
-        cost = 1;
         break;
       default:
         lane_change = 0;
         break;
     }
 
-    // double target_d = (int)floor((vehicle_telemetry[4]-1)/4);
     double target_d = (double) lane;
-    // double target_d = ((int)floor(vehicle_telemetry[4]/4) + lane)*4 + 2;
     if(target_d < 0){
       target_d = 0;
     }
-    double target_d_ = target_d + lane_change; // to preserve the lane number only for storing
-
+    // Preserve the lane number only for storing
+    double target_d_ = target_d + lane_change; 
+    // Convert the target lane to Frenet D coordinate
     target_d = (target_d + lane_change)*4 + 2;
-
     // Additional logic to ensure valid lane states
     if(target_d >= 12){
       target_d = 10;
@@ -674,10 +571,11 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     else if(target_d <= 0){
       target_d = 2;
     }
+
     vector<double> start = {30, target_d};
     vector<double> end = {90, target_d};
 
-    // Temporary velocity used for incremental velocity update
+    // Temporarily storage for the expected velocity of the new trajectory
     double vel_ = vel;
     vector<vector<double>> trajectory_ = generateTrajectory(start, end, vel_, previous_path_x, previous_path_y, 
                                                     sensor_fusion, end_path, vehicle_telemetry, 
@@ -686,31 +584,28 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     valid_trajectories.push_back(trajectory_);
     end_velocities.push_back(vel_);
     target_lanes.push_back(target_d_);
-    // costs.push_back(cost);
      
   }
 
+  // Calculate the costs associated with executing each prototype trajectory
   for(int i = 0; i < valid_trajectories.size(); ++i){
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry, target_lanes[i])*pow(10,2);
     double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,2);
     double lane_change_cost = laneChangeCost(lane, target_lanes[i])*2.0;
-    // double lane_change_cost = laneChangeCost((int)floor((vehicle_telemetry[4]-1)/4), target_lanes[i])*1.0;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost;
-    // std::cout << "Trajectory [" << i << "] Velocity:" << end_velocities[i] << std::endl;
-    std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
-    std::cout << "Collision Cost: " << collision_cost << std::endl;
-    std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
-    std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
+    // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
+    // std::cout << "Collision Cost: " << collision_cost << std::endl;
+    // std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
+    // std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
     // std::cout << "Total Cost: " << total_cost << std::endl;
     costs.push_back(total_cost);
   }
 
+  // Select the lowest cost for execution
   int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
-
-
   vector<vector<double>> trajectory = valid_trajectories[minElementIndex];
   vel = end_velocities[minElementIndex]; // updating internally tracked velocity corresponding to selected trajectory
-  lane = target_lanes[minElementIndex];
+  lane = target_lanes[minElementIndex]; // update the internally tracked lane to the target lane
   return trajectory;
 }
 
