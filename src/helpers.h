@@ -20,6 +20,7 @@ const double MAX_VEL = 49.5 * 0.44704;
 const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
 const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
 const double TIMESTEP = 0.02; // Simulator update rate
+const double MIN_COLLISION_RADIUS = 15;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -261,7 +262,9 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
             target_velocity = target_vehicles[i][2];
             // In the case where a car suddenly merges
             // reduce the target velocity to widen the gap
-            if(target_vehicles[i][0] < 30){
+            double target_dist = target_vehicles[i][0];
+            while(target_dist < MIN_COLLISION_RADIUS){
+              target_dist += VEL_BUFFER*TIMESTEP;
               target_velocity -= VEL_BUFFER;
             }
           }
@@ -462,7 +465,6 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion, const vector<double> &vehicle_telemetry, const int &lane){
   double cost = 0;
   double trajectory_size = trajectory[0].size();
-  const double MIN_COLLISION_RADIUS = 15;
 
   vector<double> distances;
   
@@ -522,19 +524,20 @@ double laneChangeCost(const int &current_lane, const int &target_lane){
 }
 
 /**
- * Cost function which penalizes lanes which are occupied by more cars
+ * Cost function which penalizes lanes which are occupied by more cars (ahead of ego vehicle)
  * @param target_lane target lane for the trajectory
  * @param sensor_fusion  surrounding vehicles id, map x, map y, vel x, vel y, Frenet s, Frenet d
+ * @param car_s Frenet s value for the ego vehicle
 */ 
-double laneOccupancyCost(const int &target_lane, const vector<vector<double>> &sensor_fusion){
+double laneOccupancyCost(const int &target_lane, const vector<vector<double>> &sensor_fusion, const double &car_s){
   double counter = 0;
   for(const auto &s: sensor_fusion){
     int s_lane = (int)floor((s[6] - 1)/4);
     if(s_lane < 0){
       s_lane = 0;
     }
-    // Vehicle is in the target lane
-    if(s_lane == target_lane){
+    // Vehicle is in the target lane and ahead of ego
+    if((s_lane == target_lane) && (s[5] > car_s)){
       counter++;
     }
   }
@@ -621,7 +624,7 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry, target_lanes[i])*pow(10,2);
     double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,2);
     double lane_change_cost = laneChangeCost(lane, target_lanes[i])*2.0;
-    double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion)*0.5;
+    double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion, vehicle_telemetry[3])*0.5;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost;
     // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
     // std::cout << "Collision Cost: " << collision_cost << std::endl;
