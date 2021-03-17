@@ -20,7 +20,7 @@ const double MAX_VEL = 49.5 * 0.44704;
 const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
 const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
 const double TIMESTEP = 0.02; // Simulator update rate
-const double MIN_COLLISION_RADIUS = 15;
+const double MIN_COLLISION_RADIUS = 10;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -248,14 +248,12 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
     // Find the two closest vehicles, each either ahead or behind the ego vehicle
     bool car_ahead = false;
     bool car_behind = false;
-    vector<int> target_ids;
     double target_velocity = MAX_VEL;
     for(int i = 0; i < target_vehicles.size(); ++i){
       if(car_ahead && car_behind){
         break;
       }
       if(!car_ahead && (target_vehicles[i][1] > car_s)){
-        target_ids.push_back(i);
         // Set a minimum target velocity if there is a car ahead, and in range of target distance
         if((target_vehicles[i][2] <= MAX_VEL)){
           if(target_vehicles[i][0] < target[0]){
@@ -272,7 +270,6 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
         car_ahead = true;
       }
       if(!car_behind && (target_vehicles[i][1] <= car_s)){
-        target_ids.push_back(i);
         car_behind = true;
       }
     }
@@ -393,7 +390,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
     }
 
 
-    double target_x = 30.0; // some target in the future
+    double target_x = 15.0; // some target in the future
     double target_y = s(target_x); // some target in the future
     double target_dist = distance(target_x, target_y, 0.0, 0.0);
 
