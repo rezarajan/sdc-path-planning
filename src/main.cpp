@@ -50,7 +50,13 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+  // The simulator updates the car speed at relatively long intervals.
+  // Therefore, to ensure smooth transitions in the path, a global variable
+  // for velocity is kept and updated on each iteration.
+  double vel = 0;
+  int lane = 1;
+
+  h.onMessage([&vel,&lane,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
@@ -90,17 +96,20 @@ int main() {
 
           json msgJson;
 
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
           /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
+           * Define a path made up of (x,y) points that the car will visit
+           * sequentially every .02 seconds
            */
+        vector<double> previous_path_end = {end_path_s, end_path_d};
+        vector<double> vehicle_telemetry = {car_x, car_y, car_yaw, car_s, car_d};
+
+        vector<vector<double>> trajectory = bestTrajectory(vel, lane, previous_path_x, previous_path_y, 
+                          sensor_fusion, previous_path_end, vehicle_telemetry, 
+                          map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
 
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
+          msgJson["next_x"] = trajectory[0];
+          msgJson["next_y"] = trajectory[1];
 
           auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
