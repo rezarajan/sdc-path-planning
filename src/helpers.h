@@ -456,8 +456,8 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
 /**
  * Binary cost function which penalizes collisions
  * @param trajectory vector of pair of {x,y} trajectory points visited every 0.02 seconds
- * @param sensor_fusion - surrounding vehicles id, map x, map y, vel x, vel y, Frenet s, Frenet d
- * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
+ * @param sensor_fusion  surrounding vehicles id, map x, map y, vel x, vel y, Frenet s, Frenet d
+ * @param vehicle_telemetry  ego vehicle map x, map y, heading, Frenet s, Frenet d
 */ 
 double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion, const vector<double> &vehicle_telemetry, const int &lane){
   double cost = 0;
@@ -504,14 +504,28 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
   return cost;
 }
 
+/**
+ * Cost function which penalizes speeds slower than the maximum velocity
+ * @param target_velocity end target velocity for the trajectory in ms^-1
+*/ 
 double efficiencyCost(const double &target_velocity){
   return (MAX_VEL-target_velocity)/MAX_VEL;
 }
 
+/**
+ * Cost function which penalizes changing lanes
+ * @param current_lane internally tracked lane
+ * @param target_lane target lane for the trajectory
+*/ 
 double laneChangeCost(const int &current_lane, const int &target_lane){
   return current_lane == target_lane ? 0.0 : 1.0;
 }
 
+/**
+ * Cost function which penalizes lanes which are occupied by more cars
+ * @param target_lane target lane for the trajectory
+ * @param sensor_fusion  surrounding vehicles id, map x, map y, vel x, vel y, Frenet s, Frenet d
+*/ 
 double laneOccupancyCost(const int &target_lane, const vector<vector<double>> &sensor_fusion){
   double counter = 0;
   for(const auto &s: sensor_fusion){
@@ -609,7 +623,6 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     double lane_change_cost = laneChangeCost(lane, target_lanes[i])*2.0;
     double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion)*0.5;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost;
-
     // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
     // std::cout << "Collision Cost: " << collision_cost << std::endl;
     // std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
