@@ -212,20 +212,20 @@ double getTargetVelocity(const vector<vector<double>> &sensor_fusion, const doub
 
     // Find all vehicles in the target lane
     vector<vector<double>> target_vehicles;
-    int target_d = (int)floor((target[1] - 1)/4);
-    if(target_d < 0){
-      target_d = 0;
+    int target_lane = (int)floor((target[1] - 1)/4);
+    if(target_lane < 0){
+      target_lane = 0;
     }
-    target_d = target_d*4 + 2;
+    target_lane = target_lane*4 + 2;
 
     for(const auto &s: sensor_fusion){
-      int s_d = (int)floor((s[6] - 1)/4);
-      if(s_d < 0){
-        s_d = 0;
+      int s_lane = (int)floor((s[6] - 1)/4);
+      if(s_lane < 0){
+        s_lane = 0;
       }
-      s_d = s_d*4 + 2;
+      s_lane = s_lane*4 + 2;
 
-      if(s_d == target_d){
+      if(s_lane == target_lane){
         double x_map = s[1];
         double y_map = s[2];
         double x_vel = s[3];
@@ -467,9 +467,9 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
   vector<double> distances;
   
   // Get the current ego vehicle lane (which may be different than the target internally tracked lane)
-  int current_d = (int)floor((vehicle_telemetry[4] - 1)/4);
-  if(current_d < 0){
-    current_d = 0;
+  int ego_lane = (int)floor((vehicle_telemetry[4] - 1)/4);
+  if(ego_lane < 0){
+    ego_lane = 0;
   }
   // Check all surrounding vehicles
   for(const auto &s: sensor_fusion){
@@ -481,11 +481,11 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
     double vel = sqrt(x_vel*x_vel + y_vel*y_vel);
 
 
-    int s_d = (int)floor((s[6] - 1)/4);
-    if(s_d < 0){
-      s_d = 0;
+    int s_lane = (int)floor((s[6] - 1)/4);
+    if(s_lane < 0){
+      s_lane = 0;
     }
-    if((current_d != lane) && (s_d == lane)){
+    if((ego_lane != lane) && (s_lane == lane)){
 
       for(int t = 0; t < trajectory_size; ++t){
         x_map += TIMESTEP*x_vel;
