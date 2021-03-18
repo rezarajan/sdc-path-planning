@@ -390,7 +390,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start, const vec
     }
 
 
-    double target_x = 15.0; // some target in the future
+    double target_x = 12.0; // some target in the future
     double target_y = s(target_x); // some target in the future
     double target_dist = distance(target_x, target_y, 0.0, 0.0);
 
@@ -542,6 +542,14 @@ double laneOccupancyCost(const int &target_lane, const vector<vector<double>> &s
 }
 
 /**
+ * Cost function which penalizes deviations from the center lane
+ * @param current_lane internally tracked lane
+*/ 
+double centerDeviationCost(const int &current_lane){
+  return current_lane == 1 ? 0.0 : 1.0;
+}
+
+/**
  * End cost functions ------------------------------------------------------------------------
  */ 
 
@@ -619,15 +627,17 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
   // Calculate the costs associated with executing each prototype trajectory
   for(int i = 0; i < valid_trajectories.size(); ++i){
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry, target_lanes[i])*pow(10,2);
-    double efficieny_cost = efficiencyCost(end_velocities[i])*pow(10,2);
+    double efficieny_cost = efficiencyCost(end_velocities[i])*150.0;
     double lane_change_cost = laneChangeCost(lane, target_lanes[i])*2.0;
     double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion, vehicle_telemetry[3])*0.5;
-    double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost;
+    double center_deviation_cost = centerDeviationCost(target_lanes[i])*1.0;
+    double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost + center_deviation_cost;
     // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
     // std::cout << "Collision Cost: " << collision_cost << std::endl;
     // std::cout << "Efficiency Cost: " << efficieny_cost << std::endl;
     // std::cout << "Lane Change Cost: " << lane_change_cost << std::endl;
     // std::cout << "Lane Occupancy Cost: " << lane_occupancy_cost << std::endl;
+    // std::cout << "Center Deviation Cost: " << center_deviation_cost << std::endl;
     // std::cout << "Total Cost: " << total_cost << std::endl;
     costs.push_back(total_cost);
   }
