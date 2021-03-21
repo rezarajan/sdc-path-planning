@@ -171,10 +171,9 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
 
 /**
+ * This function returns the next valid lane change states for the ego vehicle
  * @param lane - internally tracked lane number
  * @param ego_lane - lane number of the ego vehicle
- * 
- * This function returns the next valid lane change states for the ego vehicle
  */ 
 vector<State> validStates(const int &lane, const int &ego_lane){
   // Find the next states for the vehicle
@@ -626,6 +625,8 @@ double centerDeviationCost(const int &current_lane){
  */ 
 
 /**
+ * Function which finds the best trajectory for the ego vehicle by generating trajectories and comparing their costs.
+ * The lowest cost trajectory is selected.
  * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
  * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
  */
