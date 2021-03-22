@@ -460,7 +460,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start,
     }
 
 
-    double target_x = 20.0; // some target in the future
+    double target_x = 30.0; // some target in the future
     double target_y = s(target_x); // some target in the future
     double target_dist = distance(target_x, target_y, 0.0, 0.0);
 
@@ -711,8 +711,8 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     double efficieny_cost = efficiencyCost(lane_velocities[i])*40.0;
     // double efficieny_cost = efficiencyCost(end_velocities[i])*200.0;
     double lane_change_cost = laneChangeCost(lane, target_lanes[i])*2.0;
-    double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion, vehicle_telemetry[3])*0.5;
-    double center_deviation_cost = centerDeviationCost(target_lanes[i])*1.0;
+    double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion, vehicle_telemetry[3])*0.25;
+    double center_deviation_cost = centerDeviationCost(target_lanes[i])*2.0;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost + center_deviation_cost;
     // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
     // std::cout << "Collision Cost: " << collision_cost << std::endl;
