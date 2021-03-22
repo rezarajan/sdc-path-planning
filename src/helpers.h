@@ -21,7 +21,7 @@ const double MAX_VEL = 49.5 * 0.44704;
 const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
 const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
 const double TIMESTEP = 0.02; // Simulator update rate
-const double BRAKING_DIST = 15;
+const double BRAKING_DIST = 18;
 const double MIN_COLLISION_RADIUS = 12;
 
 // Checks if the SocketIO event has JSON data.
@@ -274,7 +274,7 @@ double getTargetVelocity(const vector<double> &vehicle_telemetry, const vector<v
       if(car_ahead && car_behind){
         break;
       }
-      if(!car_ahead && (target_vehicles[i][1] > car_s)){
+      if(!car_ahead && (target_vehicles[i][1] >= car_s)){
         // Set a minimum target velocity if there is a car ahead, and in range of target distance
         if((target_vehicles[i][2] <= MAX_VEL)){
           if(target_vehicles[i][0] < target[0]){
@@ -555,7 +555,11 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
     if(s_lane < 0){
       s_lane = 0;
     }
-    if((ego_lane != lane) && (s_lane == lane)){
+
+    double vehicle_dist = fabs(s[5] - vehicle_telemetry[3]);
+    bool same_lane_collision = (ego_lane == s_lane) && (vehicle_dist < MIN_COLLISION_RADIUS);
+    // if((ego_lane != lane) && (s_lane == lane)){
+    if((s_lane == lane) || same_lane_collision){
       for(int t = 0; t < trajectory_size; ++t){
         x_map += TIMESTEP*x_vel;
         y_map += TIMESTEP*y_vel;
@@ -563,7 +567,7 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
         double dist = distance(x_map, y_map, trajectory[0][t], trajectory[1][t]);
         distances.push_back(dist);
         // And if there is a collision, return a cost of 1
-        if(dist < MIN_COLLISION_RADIUS){
+        if(dist <= MIN_COLLISION_RADIUS){
           cost = 1.0;
           return cost;
         }
@@ -710,9 +714,9 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry, target_lanes[i])*pow(10,3);
     double efficieny_cost = efficiencyCost(lane_velocities[i])*40.0;
     // double efficieny_cost = efficiencyCost(end_velocities[i])*200.0;
-    double lane_change_cost = laneChangeCost(lane, target_lanes[i])*2.0;
+    double lane_change_cost = laneChangeCost(lane, target_lanes[i])*3.0;
     double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion, vehicle_telemetry[3])*0.25;
-    double center_deviation_cost = centerDeviationCost(target_lanes[i])*2.0;
+    double center_deviation_cost = centerDeviationCost(target_lanes[i])*1.0;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost + center_deviation_cost;
     // std::cout << "Trajectory [" << i << "] Costs:" << std::endl;
     // std::cout << "Collision Cost: " << collision_cost << std::endl;
@@ -721,6 +725,22 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     // std::cout << "Lane Occupancy Cost: " << lane_occupancy_cost << std::endl;
     // std::cout << "Center Deviation Cost: " << center_deviation_cost << std::endl;
     // std::cout << "Total Cost: " << total_cost << std::endl;
+    // string print_statement;
+    // switch(valid_states[i]){
+    //   case(State::KL):
+    //     print_statement = "KL";
+    //     break;
+    //   case(State::LCL):
+    //     print_statement = "LCL";
+    //     break;
+    //   case(State::LCR):
+    //     print_statement = "LCR";
+    //     break;
+    //   default:
+    //     print_statement = "";
+    //     break;
+    // }
+    // std::cout << "Total Cost [" << print_statement << "]: " << total_cost << std::endl;
     costs.push_back(total_cost);
   }
 
