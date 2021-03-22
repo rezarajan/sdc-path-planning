@@ -89,6 +89,12 @@ At the highest level, behavior involves determining the next series of valid act
 * (`bestTrajectory`) For all `validStates`, `getTargetVelocity` and `generateTrajectory`. Then, compute the cost associated with each trajectory using weighted cost functions. Select the trajectory with the lowest cost and return that to the motion control system. In other words, generate prototype trajectories, and select the best one.
 
 ---
+
+## Explaning Cost Functions
+
+#TODO:
+
+---
 ## Addressing Rubric Points
 
 The code which addresses each rubric point will be described below:
