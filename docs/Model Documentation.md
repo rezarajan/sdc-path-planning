@@ -2,7 +2,7 @@
 
 ## Writeup
 
-### The following document outlines the process of creating an autonomous system which navigates a car around a cyclic highway track in a simulator.
+### The following document outlines the process of creating path planner which navigates a car around a cyclic highway track in a simulator.
 
 ---
 
@@ -13,8 +13,8 @@ The goals / steps of this project are the following:
 * Avoid collisions with merging traffic
 * Optimize lane transitions to overtake slower traffic
 * Ensure that the vehicle's speed does not exceed the 50 MPH speed limit
-* Ensure that the vehicle's acceleration does not exceed 10m/s^2
-* Ensure that the vehicle's jerk does not exceed 10m/s^3
+* Ensure that the vehicle's acceleration does not exceed 10ms<sup>-2</sup>
+* Ensure that the vehicle's jerk does not exceed 10ms<sup>-3</sup>
 * Summarize the results with a written report
 
 
@@ -38,7 +38,7 @@ You're reading it! and here is a link to my [project code](https://github.com/re
 
 ## Code Structure
 
-The implementaion fo the code follows a functional programming style versus an object oriented one. This approach is taken simply because in C++, this is what I am more accustomed to. For the purposes of this project, this method suffices, but an object-oriented approch is perhaps recommended for better flexibility of the code. This is further explained in the recommendations.
+The code implementaion follows a functional programming style versus an object-oriented one. This approach is taken simply because in C++ this is what I am more accustomed to. For the purposes of this project this method suffices, but an object-oriented approch is perhaps recommended for better code flexibility, for e.g. if implementing the [recommendations](#recommendations).
 
 Most of the code resides in the `helpers.h` header file, with a single endpoint exposed in the `main.cpp` file. In other words, the logic of path planning is handled by a single function called `bestTrajectory`, which is called in `main.cpp` to return a vector of `[x,y]` path points.
 
@@ -46,28 +46,30 @@ The following are the functions used:
 
 #### *Logic Functions*
 * `validStates` - This function returns the next valid lane change states for the ego vehicle
-* `getTargetVelocity` - Find the closest vehicles both ahead and behind the car, in the target lane. Returns the target velocity for path generation.
+* `getTargetVelocity` - Finds the closest vehicles both ahead and behind the car, in the target lane. Returns the target velocity for path generation.
 * `generateTrajectory` - Generates a spline given the start and end positions in Frenet coordinates
-* `bestTrajectory` - Function which finds the best trajectory for the ego vehicle by generating trajectories and comparing their costs. The lowest cost trajectory is selected.
+* `bestTrajectory` - Function which finds the best trajectory for the ego vehicle by generating prototype trajectories and comparing their costs. The lowest cost trajectory is selected.
 
 #### *Cost Functions*
 * `collisionCost` - Binary cost function which penalizes collisions
-* `efficiencyCost` - Cost function which penalizes speeds slower than the maximum velocity
+* `efficiencyCost` - Cost function which penalizes speeds slower than the maximum speed
 * `laneChangeCost` - Cost function which penalizes changing lanes
 * `laneOccupancyCost` - Cost function which penalizes lanes which are occupied by more cars (ahead of ego vehicle)
 * `centerDeviationCost` - Cost function which penalizes deviations from the center lane
+
+*Cost functions are explained in more detail [below](#explaning-cost-functions).*
 
 ---
 
 ## Path Planning Structure
 
-To understand why the code is separated as outlined, the process of path planning will be described. Path planning in the context of highway driving involves the following:
+To understand why the code is separated into the above defined functions, the process of path planning will be described. Path planning in the context of highway driving involves the following:
 
 ![image1]
 
 ## Behavior
 
-At the highest level, behavior involves determining the next series of valid actions the ego vehicle may perform, given all data. In the code, this will include:
+At the highest level, behavior involves determining the next series of valid actions the ego vehicle may perform, given localization and prediction data. In the code, this will include:
 * (`validStates`) Finding the next valid lane transitions a vehcile may perform:
   * Keep Lane
   * Lane Change Left
@@ -80,7 +82,7 @@ At the highest level, behavior involves determining the next series of valid act
   * Any vehicles behind in the target lane driving faster than the ego
 
 ## Trajectory
-* (`generateTrajectory`) Given the vehicles's current position, the target lane, and the target velocity from the above functions, generate a trajectory for the vehicle to follow, and which obeys the constrains of speed, acceleration and jerk.
+* (`generateTrajectory`) Given the vehicles's current position, the target lane, and the target velocity from the above functions, generate a trajectory for the vehicle to follow, which obeys the constrains of speed, acceleration and jerk.
 * (`bestTrajectory`) For all `validStates`, `getTargetVelocity` and `generateTrajectory`. Then, compute the cost associated with each trajectory using weighted cost functions. Select the trajectory with the lowest cost and return that to the motion control system. In other words, generate prototype trajectories, and select the best one.
 
 ---
@@ -92,8 +94,8 @@ Cost functions serve as a way for the path planner to determine the most desired
 * ***Collision Cost:*** trajectories which collide with other vehicles will incur a significant cost. This is important, as collisions are the most undesirable result when driving. A weight of 1000 is set for the `collisionCost` function, to ensure any path which results in collison is rejected.
 * ***Efficiency Cost:*** the most desirable behavior is for the car to travel as close to the speed limit as possible, overtaking slower cars. Therefore, the `efficiencyCost` function rewards trajectories with higher speeds.
 * ***Lane Change Cost:*** when a human drives they don't haphazardly change lanes. A lane change must be intentional, and occurs usually when overtaking or approaching a waypoint. Therefore, to prevent the planner from constantly changing lanes, the `laneChangeCost` function checks for trajectories which require a lane change, and penalize them with a cost of 3.0. Therefore, to change lanes in this implementation, the target lane must result in a meaningfully higher speed.
-* ***Lane Occupancy Cost:*** typically, it is easier to drive in lanes which contain less traffic. Furthermore, generally the chances of moving at higher speeds increase when lanes have less obstacles in front of the car. Therefore, the `laneOccupancyCost` function adds a small cost to each trajectory for each vehicle in the lane.
-* ***Center Deviation Cost:*** this function is a bit less intuitive, but is still useful in the simulator environment. Essentially, the `centerDeviationCost` function rewards the vehicle for staying in the center lane. This behavior is desired in the three-lane highway scenario, since there are more options for the vehicle to overtake other traffic using either the left or right lanes, and get ahead of traffic. This cost opposes the lane change cost for the center lane, but adds to it for other lanes. To ensure that the center lane is not too biased, however, this cost is relatively low compared to the lane change cost, and therefore the center lane must still result in higher speeds and less traffic for the car to return to center.
+* ***Lane Occupancy Cost:*** typically, it is easier to drive in lanes which contain less traffic. Furthermore, generally the chances of moving at higher speeds increase when lanes have less obstacles in front of the car. Therefore, the `laneOccupancyCost` function adds a small cost to each trajectory for each vehicle in the target lane.
+* ***Center Deviation Cost:*** this function is a bit less intuitive, but is still useful in the simulator environment. Essentially, the `centerDeviationCost` function rewards the vehicle for staying in the center lane. This behavior is desired in the three-lane highway scenario, since there are more options for the vehicle to overtake other traffic using either the left or right lanes, and get ahead of traffic. This cost opposes the lane change cost for the center lane, but adds to it for other lanes. To ensure that the center lane is not too biased, however, this cost is relatively low compared to the lane change cost, and therefore the center lane must still result in higher speeds and less traffic for the car to return to/stay at center.
 
 ---
 ## Addressing Rubric Points
@@ -118,7 +120,7 @@ The car drives as close as possible to the speed limit, when conditions permit i
 The vehicle speed is managed by the `getTargetVelocity` function, such that the generated path (spline) meets the acceleration and jerk requirements.
 
 #### *4. Car does not have collisions.*
-Barring the edge case described [above](#1-the-car-is-able-to-drive-at-least-432-miles-without-incident), the car avoids collisions by managing speed and switching to lanes which avoid collisions. This is done by using the `collisionCost` cost function, which assigns very high costs for trajectories which result in collisions.
+Barring the edge case described [above](#1-the-car-is-able-to-drive-at-least-432-miles-without-incident), the car avoids collisions by managing speed and switching lanes only when conditions permit. This is done by using the `collisionCost` cost function, which assigns very high costs for trajectories which result in collisions.
 
 #### *5. The car stays in its lane, except for the time between changing lanes.*
 The car does not spend more than 3 seconds during a lane transition, and stays within the lane when keeping lanes (right hand side of the road only). Lane changes are based on the `laneChangeCost`, `laneOccupancyCost` and `centerDeviationCost` cost functions, which state that staying in the center lane is preferred, unless either of the other lanes are clear and have higher speed limits.
@@ -135,4 +137,4 @@ The car changes lanes based on a series of cost functions.
 
 ## Conclusions
 
-A path planner has been created, which navigates an ego vehicle around a simulator highway for at least 4.32 miles in accordance with the [project specifications](#highway-driving-project), except in some edge case situations. The planner is for the most part, robust, and optimizes lane changes through the use of cost functions.
+A path planner has been created, which navigates an ego vehicle around a simulator highway for at least 4.32 miles in accordance with the [project specifications](#highway-driving-project), except in some edge case situations. The planner is for the most part, robust, and optimizes lane changes through the use of cost functions. Recommendations are also provided for further improvement of the path planner.
