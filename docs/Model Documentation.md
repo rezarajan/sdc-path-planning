@@ -134,6 +134,8 @@ The car changes lanes based on a series of cost functions.
 
 * The current implementation still results in collisions in some situations. To address such issues it is recommended that a more sophisticated prediction system be used, which consideres nuanced movements of surrounding vehicles, and generates more accurate prototype trajectories to check collisions against.
 * The current implementation still violates acceleration constraints when changing lanes at full speed around a turn. It is recommended that the `getTargetVelocity` function be updated to check for centripetal acceleration by finding the radius of curvature of the road. Note that this will come with more computational expense.
+* It may be benificial for the planner to track gaps between vehicles, to better match speed and position for lane merges. Tracking is currently done based on individual vehicles, which is not always representative of the vehicle's ability to merge into another lane.
+* In the left or rightmost lanes, the planner only looks for a single lane change either right or left, respectively. If, for instance, the ego vehicle is in the leftmost lane moving slower than the speed limit, but the rightmost lane is free, it does not look for the opportunity to get into the rightmost lane. This will only occur if the center lane is also moving faster than the speed of traffic. It is recommended that all lanes be checked for potential to overtake traffic.
 
 ## Conclusions
 
