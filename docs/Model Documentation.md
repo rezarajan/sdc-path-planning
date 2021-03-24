@@ -32,7 +32,7 @@ The goals / steps of this project are the following:
 
 #### 1. The code model for generating paths is described in detail. This can be part of the README or a separate doc labeled "Model Documentation".
 
-You're reading it! and here is a link to my [project code](https://github.com/rezarajan/sdc-path-planning.git). A video showcasing the car driving for 25 minutes is available [here](https://youtu.be/lzqQZv1BSao).
+You're reading it! and here is a link to my [project code](https://github.com/rezarajan/sdc-path-planning.git). A video showcasing the car driving for 4.32 miles, in five trials, is available [here](https://youtu.be/VFb8rHQNdyM).
 
 ---
 
@@ -93,7 +93,7 @@ Cost functions serve as a way for the path planner to determine the most desired
 
 * ***Collision Cost:*** trajectories which collide with other vehicles will incur a significant cost. This is important, as collisions are the most undesirable result when driving. A weight of 1000 is set for the `collisionCost` function, to ensure any path which results in collison is rejected.
 * ***Efficiency Cost:*** the most desirable behavior is for the car to travel as close to the speed limit as possible, overtaking slower cars. Therefore, the `efficiencyCost` function rewards trajectories with higher speeds.
-* ***Lane Change Cost:*** when a human drives they don't haphazardly change lanes. A lane change must be intentional, and occurs usually when overtaking or approaching a waypoint. Therefore, to prevent the planner from constantly changing lanes, the `laneChangeCost` function checks for trajectories which require a lane change, and penalize them with a cost of 3.0. Therefore, to change lanes in this implementation, the target lane must result in a meaningfully higher speed.
+* ***Lane Change Cost:*** when a human drives they don't haphazardly change lanes. A lane change must be intentional, and occurs usually when overtaking or approaching a waypoint. Therefore, to prevent the planner from constantly changing lanes, the `laneChangeCost` function checks for trajectories which require a lane change, and penalize them with a weighted cost of 3.0. Therefore, to change lanes in this implementation, the target lane must result in a meaningfully higher speed.
 * ***Lane Occupancy Cost:*** typically, it is easier to drive in lanes which contain less traffic. Furthermore, generally the chances of moving at higher speeds increase when lanes have less obstacles in front of the car. Therefore, the `laneOccupancyCost` function adds a small cost to each trajectory for each vehicle in the target lane.
 * ***Center Deviation Cost:*** this function is a bit less intuitive, but is still useful in the simulator environment. Essentially, the `centerDeviationCost` function rewards the vehicle for staying in the center lane. This behavior is desired in the three-lane highway scenario, since there are more options for the vehicle to overtake other traffic using either the left or right lanes, and get ahead of traffic. This cost opposes the lane change cost for the center lane, but adds to it for other lanes. To ensure that the center lane is not too biased, however, this cost is relatively low compared to the lane change cost, and therefore the center lane must still result in higher speeds and less traffic for the car to return to/stay at center.
 
@@ -103,7 +103,7 @@ Cost functions serve as a way for the path planner to determine the most desired
 The code which addresses each rubric point will be described below:
 
 #### *1. The car is able to drive at least 4.32 miles without incident.*
-Valid trajectories are generated such that the ego vehicle is able to complete 4.32 miles around the track, without indcident in most cases. [Here](https://youtu.be/lzqQZv1BSao) is a link to a video showcasing the vehicle driving for 25 minutes, without collision. A snippet is shown below:
+Valid trajectories are generated such that the ego vehicle is able to complete 4.32 miles around the track, without indcident in most cases. [Here](https://youtu.be/VFb8rHQNdyM) is a link to a video showcasing the vehicle driving for 4.32 miles in five trials, without collision. Furthermore, a snippet of the vehicle driving for 25 minutes without collision is shown below:
 
 ![image2]
 
