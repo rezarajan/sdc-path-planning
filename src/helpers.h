@@ -308,12 +308,12 @@ double getTargetVelocity(const vector<double> &vehicle_telemetry, const vector<v
               double target_dist = target_vehicles[i][1] - car_s;
               // double target_dist = target_vehicles[i][0];
               if(target_dist < BRAKING_DIST){
-                target_velocity = (target_vehicles[i][2]-target_velocity) + 2*(0.5*MAX_ACCEL)*BRAKING_DIST;
+                // v^2 = u^2 + 2as
+                target_velocity = sqrt(pow((target_vehicles[i][2]-target_velocity),2) - 2*(MAX_ACCEL)*BRAKING_DIST);
                 target_velocity = std::min(target_velocity, MAX_VEL);
-                target_velocity = std::min(target_velocity, MIN_BRAKING_VEL);
+                target_velocity = std::max(target_velocity, MIN_BRAKING_VEL);
               }
               // while(target_dist < BRAKING_DIST){
-                // v^2 = u^2 + 2as
                 // double target_velocity_ = target_velocity - VEL_BUFFER;
                 // if(target_velocity_ > MIN_BRAKING_VEL){
                   // target_velocity = target_velocity_;
