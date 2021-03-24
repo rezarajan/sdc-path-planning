@@ -55,10 +55,9 @@ int main() {
   // for velocity is kept and updated on each iteration.
   double vel = 0;
   int lane = 1;
-  bool collision = false;
   bool braking_only = false;
 
-  h.onMessage([&vel,&lane,&collision,&braking_only,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+  h.onMessage([&vel,&lane,&braking_only,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
@@ -105,7 +104,7 @@ int main() {
         vector<double> previous_path_end = {end_path_s, end_path_d};
         vector<double> vehicle_telemetry = {car_x, car_y, car_yaw, car_s, car_d};
 
-        vector<vector<double>> trajectory = bestTrajectory(vel, lane, collision, braking_only, previous_path_x, previous_path_y, 
+        vector<vector<double>> trajectory = bestTrajectory(vel, lane, braking_only, previous_path_x, previous_path_y, 
                           sensor_fusion, previous_path_end, vehicle_telemetry, 
                           map_waypoints_s, map_waypoints_x, map_waypoints_y);
 

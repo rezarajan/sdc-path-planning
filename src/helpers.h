@@ -176,15 +176,15 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
 /**
  * This function returns the next valid lane change states for the ego vehicle
- * @param lane - internally tracked lane number
- * @param ego_lane - lane number of the ego vehicle
+ * @param lane  internally tracked lane number
+ * @param ego_lane  lane number of the ego vehicle
+ * @param braking_only  flag for maintaining lane in a braking only scenario
  */ 
-vector<State> validStates(const int &lane, const int &ego_lane, const bool &collision, const bool &braking_only){
+vector<State> validStates(const int &lane, const int &ego_lane, const bool &braking_only){
   // Find the next states for the vehicle
   vector<State> valid_states;
   // If vehicle has already transitioned to the tracked target lane
   if(!braking_only && (lane == ego_lane)){
-  // if(!braking_only && (!collision || (lane == ego_lane))){
     switch(lane) {
       case(0):
         // If in leftmost lane, then Keep Lane or Lane Change Right
@@ -284,68 +284,30 @@ double getTargetVelocity(const vector<double> &vehicle_telemetry, const vector<v
         { return v_a[0] < v_b[0]; });
     }
 
-    // Find the two closest vehicles, each either ahead or behind the ego vehicle
-    bool car_ahead = false;
-    // bool car_behind = false;
+    // Find the closest vehicle ahead and adjust speed
     double target_velocity = MAX_VEL;
-    // double car_ahead_vel;
-    // double car_behind_vel;
-    // double car_ahead_dist = target[0];
-    // double car_behind_dist = target[0];
     for(int i = 0; i < target_vehicles.size(); ++i){
-      // if(car_ahead && car_behind){
-      //   break;
-      // }
       if(target_vehicles[i][1] >= car_s){
-      // if(!car_ahead && (target_vehicles[i][1] >= car_s)){
         // Set a minimum target velocity if there is a car ahead, and in range of target distance
         if((target_vehicles[i][2] <= MAX_VEL)){
           if(target_vehicles[i][0] < target[0]){
-            // car_ahead_dist = target_vehicles[i][0];
             target_velocity = target_vehicles[i][2];
             // Do not reduce velocity unless entirely in target lane (prevents slowing down too much during lane change)
-            // if(ego_lane == target_lane){
             if(vehicle_telemetry[4] == target[1]){
               // In the case where a car suddenly merges reduce the target velocity to widen the gap
               double target_dist = target_vehicles[i][1] - car_s;
-              // double target_dist = target_vehicles[i][0];
               if(target_dist < BRAKING_DIST){
                 // v^2 = u^2 + 2as
                 target_velocity = sqrt(pow((target_vehicles[i][2]-target_velocity),2) - 2*(MAX_ACCEL)*BRAKING_DIST);
                 target_velocity = std::min(target_velocity, MAX_VEL);
                 target_velocity = std::max(target_velocity, MIN_BRAKING_VEL);
               }
-              // while(target_dist < BRAKING_DIST){
-                // double target_velocity_ = target_velocity - VEL_BUFFER;
-                // if(target_velocity_ > MIN_BRAKING_VEL){
-                  // target_velocity = target_velocity_;
-                  // target_dist += (target_vehicles[i][2]-target_velocity)*TIMESTEP;
-                // }
-                // else{
-                //   break;
-                // }
-              // }
             }
           }
         }
-        // car_ahead = true;
         break;
       }
     }
-    //   if(!car_behind && (target_vehicles[i][1] < car_s)){
-    //     if(target_vehicles[i][0] < target[0]){
-    //       car_behind_dist = target_vehicles[i][0]; 
-    //       car_behind_vel = target_vehicles[i][2];
-    //       car_behind = true;
-    //     }
-    //   }
-    // }
-
-    // if(car_behind && (car_behind_vel > target_velocity)){
-    //   if(car_behind_dist < car_ahead_dist){
-    //     target_velocity = std::min(car_behind_vel, MAX_VEL);
-    //   }
-    // }
 
     return target_velocity;
 }
@@ -644,10 +606,16 @@ double centerDeviationCost(const int &current_lane){
 /**
  * Function which finds the best trajectory for the ego vehicle by generating trajectories and comparing their costs.
  * The lowest cost trajectory is selected.
- * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
- * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
+ * @param vel internally tracked velocity of the ego vehicle 
+ * @param lane  internally tracked lane number
+ * @param braking_only  flag for maintaining lane in a braking only scenario
+ * @param previous_path previous path points to include in trajectory generation in map {x,y} coordinates
+ * @param sensor_fusion  surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
+ * @param end_path the Frenet coordinates of the end of the previous path {s,d}
+ * @param vehicle_telemetry  ego vehicle map x, map y, heading, Frenet s, Frenet d
+ * @param map_waypoints vector of map waypoint {Frenet s, x, y} coordinates
  */
-vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &collision, bool &braking_only,
+vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &braking_only,
                               const vector<double> &previous_path_x,
                               const vector<double> &previous_path_y,
                               const vector<vector<double>> &sensor_fusion, 
@@ -664,7 +632,7 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &collision, b
     ego_lane = 0;
   }
   // Find the next states for the vehicle
-  vector<State> valid_states = validStates(lane, ego_lane, collision, braking_only);
+  vector<State> valid_states = validStates(lane, ego_lane, braking_only);
 
   vector<vector<vector<double>>> valid_trajectories;
   vector<double> end_velocities;
@@ -734,10 +702,6 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &collision, b
     costs.push_back(total_cost);
     if(collision_cost > 0){
       collision_counter++;
-      // If changing lanes set collisions to true so that the validStates function can allow lane reversion
-      // if(transitioning){
-      //   collision = true;
-      // }
     }
     string print_statement;
     switch(valid_states[i]){
