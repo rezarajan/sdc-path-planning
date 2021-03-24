@@ -32,7 +32,7 @@ The goals / steps of this project are the following:
 
 #### 1. The code model for generating paths is described in detail. This can be part of the README or a separate doc labeled "Model Documentation".
 
-You're reading it! and here is a link to my [project code](https://github.com/rezarajan/sdc-path-planning.git). A video showcasing the car driving for 25 minutes is available [here](https://youtu.be/lzqQZv1BSao).
+You're reading it! and here is a link to my [project code](https://github.com/rezarajan/sdc-path-planning.git). A video showcasing the car driving for 4.32 miles, in five trials, is available [here](https://youtu.be/VFb8rHQNdyM).
 
 ---
 
@@ -103,7 +103,7 @@ Cost functions serve as a way for the path planner to determine the most desired
 The code which addresses each rubric point will be described below:
 
 #### *1. The car is able to drive at least 4.32 miles without incident.*
-Valid trajectories are generated such that the ego vehicle is able to complete 4.32 miles around the track, without indcident in most cases. [Here](https://youtu.be/lzqQZv1BSao) is a link to a video showcasing the vehicle driving for 25 minutes, without collision. A snippet is shown below:
+Valid trajectories are generated such that the ego vehicle is able to complete 4.32 miles around the track, without indcident in most cases. [Here](https://youtu.be/VFb8rHQNdyM) is a link to a video showcasing the vehicle driving for 4.32 miles in five trials, without collision. Furthermore, a snippet of the vehicle driving for 25 minutes without collision is shown below:
 
 ![image2]
 
