@@ -208,7 +208,7 @@ vector<State> validStates(const int &lane, const int &ego_lane, const bool &brak
   else {
     // Brake to widen the gap between a close car
     if(braking_only){
-      std::cout << "Braking Only!" << std::endl;
+      // std::cout << "Braking Only!" << std::endl;
       int lane_diff = lane - ego_lane;
       if(lane_diff == 0){
         valid_states = {State::KL};
@@ -529,7 +529,7 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
     // Collision on same lane is different than for merging lanes (braking allowance)
     bool same_lane_collision = (ego_lane == s_lane) && (vehicle_dist <= MAX_COLLISION_DIST_S);
     if(same_lane_collision){
-      std::cout << "Same Lane Collision!" << std::endl;
+      // std::cout << "Same Lane Collision!" << std::endl;
       cost = 1.0;
       return cost;
     }
@@ -703,22 +703,22 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &braking_only
     if(collision_cost > 0){
       collision_counter++;
     }
-    string print_statement;
-    switch(valid_states[i]){
-      case(State::KL):
-        print_statement = "KL ";
-        break;
-      case(State::LCL):
-        print_statement = "LCL";
-        break;
-      case(State::LCR):
-        print_statement = "LCR";
-        break;
-      default:
-        print_statement = "";
-        break;
-    }
-    std::cout << "Total Cost [" << print_statement << "]" << "(" << target_lanes[i] << "): " << total_cost << std::endl;
+    // string print_statement;
+    // switch(valid_states[i]){
+    //   case(State::KL):
+    //     print_statement = "KL ";
+    //     break;
+    //   case(State::LCL):
+    //     print_statement = "LCL";
+    //     break;
+    //   case(State::LCR):
+    //     print_statement = "LCR";
+    //     break;
+    //   default:
+    //     print_statement = "";
+    //     break;
+    // }
+    // std::cout << "Total Cost [" << print_statement << "]" << "(" << target_lanes[i] << "): " << total_cost << std::endl;
   }
 
   // If all trajectories result in a collision, try braking only
