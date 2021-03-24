@@ -183,7 +183,8 @@ vector<State> validStates(const int &lane, const int &ego_lane, const bool &coll
   // Find the next states for the vehicle
   vector<State> valid_states;
   // If vehicle has already transitioned to the tracked target lane
-  if(!braking_only && (collision || (lane == ego_lane))){
+  if(!braking_only && (lane == ego_lane)){
+  // if(!braking_only && (!collision || (lane == ego_lane))){
     switch(lane) {
       case(0):
         // If in leftmost lane, then Keep Lane or Lane Change Right
@@ -205,7 +206,7 @@ vector<State> validStates(const int &lane, const int &ego_lane, const bool &coll
     transitioning = false;
   }
   else {
-    // Otherwise retain the trakced lane until transition is complete
+    // Brake to widen the gap between a close car
     if(braking_only){
       std::cout << "Braking Only!" << std::endl;
       int lane_diff = lane - ego_lane;
@@ -221,6 +222,7 @@ vector<State> validStates(const int &lane, const int &ego_lane, const bool &coll
       transitioning = false;
     }
     else {
+      // Otherwise retain the tracked lane until transition is complete
       valid_states = {State::KL};
       transitioning = true;
     }
@@ -732,10 +734,10 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &collision, b
     costs.push_back(total_cost);
     if(collision_cost > 0){
       collision_counter++;
-      // if changing lanes set collisions to true so that the validStaets function can allow lane reversion
-      if(transitioning){
-        collision = true;
-      }
+      // If changing lanes set collisions to true so that the validStates function can allow lane reversion
+      // if(transitioning){
+      //   collision = true;
+      // }
     }
     string print_statement;
     switch(valid_states[i]){
