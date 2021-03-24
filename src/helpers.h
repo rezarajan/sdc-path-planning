@@ -21,8 +21,12 @@ const double MAX_VEL = 49.5 * 0.44704;
 const double ACCEL_TIME = 0.01; // Acceleration is measured in 0.2s invervals by the simulator, but the messages update every 0.02s (0.02/0.2 = 0.1 for proper scaling)
 const double VEL_BUFFER = MAX_ACCEL*ACCEL_TIME; // Velocity buffer to ensure car stays within limits with controller error
 const double TIMESTEP = 0.02; // Simulator update rate
-const double BRAKING_DIST = 18;
-const double MIN_COLLISION_RADIUS = 12;
+const double BRAKING_DIST = 55;
+const double MAX_COLLISION_RADIUS = 25;
+const double MAX_COLLISION_DIST_S = 20;
+const double MIN_BRAKING_VEL = 5.0;
+
+bool transitioning = false;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -175,11 +179,11 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
  * @param lane - internally tracked lane number
  * @param ego_lane - lane number of the ego vehicle
  */ 
-vector<State> validStates(const int &lane, const int &ego_lane){
+vector<State> validStates(const int &lane, const int &ego_lane, const bool &collision, const bool &braking_only){
   // Find the next states for the vehicle
   vector<State> valid_states;
   // If vehicle has already transitioned to the tracked target lane
-  if(lane == ego_lane){
+  if(!braking_only && (collision || (lane == ego_lane))){
     switch(lane) {
       case(0):
         // If in leftmost lane, then Keep Lane or Lane Change Right
@@ -198,10 +202,28 @@ vector<State> validStates(const int &lane, const int &ego_lane){
         valid_states = {State::KL};
         break;
     }
+    transitioning = false;
   }
   else {
     // Otherwise retain the trakced lane until transition is complete
-    valid_states = {State::KL};
+    if(braking_only){
+      std::cout << "Braking Only!" << std::endl;
+      int lane_diff = lane - ego_lane;
+      if(lane_diff == 0){
+        valid_states = {State::KL};
+      }
+      else if(lane_diff == 1){
+        valid_states = {State::LCL};
+      }
+      else if(lane_diff == -1){
+        valid_states = {State::LCR};
+      }
+      transitioning = false;
+    }
+    else {
+      valid_states = {State::KL};
+      transitioning = true;
+    }
   }
 
   return valid_states;
@@ -262,49 +284,66 @@ double getTargetVelocity(const vector<double> &vehicle_telemetry, const vector<v
 
     // Find the two closest vehicles, each either ahead or behind the ego vehicle
     bool car_ahead = false;
-    bool car_behind = false;
+    // bool car_behind = false;
     double target_velocity = MAX_VEL;
-    double car_ahead_vel;
-    double car_behind_vel;
-    double car_ahead_dist = target[0];
-    double car_behind_dist = target[0];
+    // double car_ahead_vel;
+    // double car_behind_vel;
+    // double car_ahead_dist = target[0];
+    // double car_behind_dist = target[0];
     for(int i = 0; i < target_vehicles.size(); ++i){
-      if(car_ahead && car_behind){
-        break;
-      }
-      if(!car_ahead && (target_vehicles[i][1] >= car_s)){
+      // if(car_ahead && car_behind){
+      //   break;
+      // }
+      if(target_vehicles[i][1] >= car_s){
+      // if(!car_ahead && (target_vehicles[i][1] >= car_s)){
         // Set a minimum target velocity if there is a car ahead, and in range of target distance
         if((target_vehicles[i][2] <= MAX_VEL)){
           if(target_vehicles[i][0] < target[0]){
-            car_ahead_dist = target_vehicles[i][0];
+            // car_ahead_dist = target_vehicles[i][0];
             target_velocity = target_vehicles[i][2];
-            // Do not reduce velocity unless in target lane (prevents slowing down too much during lane change)
-            if(ego_lane == target_lane){
+            // Do not reduce velocity unless entirely in target lane (prevents slowing down too much during lane change)
+            // if(ego_lane == target_lane){
+            if(vehicle_telemetry[4] == target[1]){
               // In the case where a car suddenly merges reduce the target velocity to widen the gap
-              double target_dist = target_vehicles[i][0];
-              while(target_dist < BRAKING_DIST){
-                target_velocity -= VEL_BUFFER;
-                target_dist += (target_vehicles[i][2]-target_velocity)*TIMESTEP;
+              double target_dist = target_vehicles[i][1] - car_s;
+              // double target_dist = target_vehicles[i][0];
+              if(target_dist < BRAKING_DIST){
+                target_velocity = (target_vehicles[i][2]-target_velocity) + 2*(0.5*MAX_ACCEL)*BRAKING_DIST;
+                target_velocity = std::min(target_velocity, MAX_VEL);
+                target_velocity = std::min(target_velocity, MIN_BRAKING_VEL);
               }
+              // while(target_dist < BRAKING_DIST){
+                // v^2 = u^2 + 2as
+                // double target_velocity_ = target_velocity - VEL_BUFFER;
+                // if(target_velocity_ > MIN_BRAKING_VEL){
+                  // target_velocity = target_velocity_;
+                  // target_dist += (target_vehicles[i][2]-target_velocity)*TIMESTEP;
+                // }
+                // else{
+                //   break;
+                // }
+              // }
             }
           }
         }
-        car_ahead = true;
-      }
-      if(!car_behind && (target_vehicles[i][1] <= car_s)){
-        if(target_vehicles[i][0] < target[0]){
-          car_behind_dist = target_vehicles[i][0]; 
-          car_behind_vel = target_vehicles[i][2];
-          car_behind = true;
-        }
+        // car_ahead = true;
+        break;
       }
     }
+    //   if(!car_behind && (target_vehicles[i][1] < car_s)){
+    //     if(target_vehicles[i][0] < target[0]){
+    //       car_behind_dist = target_vehicles[i][0]; 
+    //       car_behind_vel = target_vehicles[i][2];
+    //       car_behind = true;
+    //     }
+    //   }
+    // }
 
-    if(car_behind && (car_behind_vel > target_velocity)){
-      if(car_behind_dist < car_ahead_dist){
-        target_velocity = std::min(car_behind_vel, MAX_VEL);
-      }
-    }
+    // if(car_behind && (car_behind_vel > target_velocity)){
+    //   if(car_behind_dist < car_ahead_dist){
+    //     target_velocity = std::min(car_behind_vel, MAX_VEL);
+    //   }
+    // }
 
     return target_velocity;
 }
@@ -336,7 +375,7 @@ vector<vector<double>> generateTrajectory(const vector<double> &start,
     int path_size = previous_path_x.size();
     double car_s = vehicle_telemetry[3];
 
-    // Preventing collisions.
+    // Continue path generation from end of previous path
     if (path_size > 0) {
       car_s = end_path[0];
     }
@@ -495,7 +534,8 @@ vector<vector<double>> generateTrajectory(const vector<double> &start,
  * @param vehicle_telemetry  ego vehicle map x, map y, heading, Frenet s, Frenet d
  * @param lane  target lane number
 */ 
-double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion, const vector<double> &vehicle_telemetry, const int &lane){
+double collisionCost(const vector<vector<double>> &trajectory, const vector<vector<double>> &sensor_fusion,
+                    const vector<double> &vehicle_telemetry, const int &lane){
   double cost = 0;
   double trajectory_size = trajectory[0].size();
 
@@ -522,8 +562,15 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
     }
 
     double vehicle_dist = fabs(s[5] - vehicle_telemetry[3]);
-    bool same_lane_collision = (ego_lane == s_lane) && (vehicle_dist < MIN_COLLISION_RADIUS);
-    if((s_lane == lane) || same_lane_collision){
+    // Collision on same lane is different than for merging lanes (braking allowance)
+    bool same_lane_collision = (ego_lane == s_lane) && (vehicle_dist <= MAX_COLLISION_DIST_S);
+    if(same_lane_collision){
+      std::cout << "Same Lane Collision!" << std::endl;
+      cost = 1.0;
+      return cost;
+    }
+
+    if((s_lane == lane)){
       for(int t = 0; t < trajectory_size; ++t){
         x_map += TIMESTEP*x_vel;
         y_map += TIMESTEP*y_vel;
@@ -531,7 +578,7 @@ double collisionCost(const vector<vector<double>> &trajectory, const vector<vect
         double dist = distance(x_map, y_map, trajectory[0][t], trajectory[1][t]);
         distances.push_back(dist);
         // And if there is a collision, return a cost of 1
-        if(dist <= MIN_COLLISION_RADIUS){
+        if(dist <= MAX_COLLISION_RADIUS){
           cost = 1.0;
           return cost;
         }
@@ -598,7 +645,7 @@ double centerDeviationCost(const int &current_lane){
  * @param vehicle_telemetry - ego vehicle map x, map y, heading, Frenet s, Frenet d
  * @param sensor_fusion - surrounding vehicles map x, map y, vel x, vel y, Frenet s, Frenet d
  */
-vector<vector<double>> bestTrajectory(double &vel, int &lane,
+vector<vector<double>> bestTrajectory(double &vel, int &lane, bool &collision, bool &braking_only,
                               const vector<double> &previous_path_x,
                               const vector<double> &previous_path_y,
                               const vector<vector<double>> &sensor_fusion, 
@@ -615,7 +662,7 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
     ego_lane = 0;
   }
   // Find the next states for the vehicle
-  vector<State> valid_states = validStates(lane, ego_lane);
+  vector<State> valid_states = validStates(lane, ego_lane, collision, braking_only);
 
   vector<vector<vector<double>>> valid_trajectories;
   vector<double> end_velocities;
@@ -674,15 +721,42 @@ vector<vector<double>> bestTrajectory(double &vel, int &lane,
   }
 
   // Calculate the costs associated with executing each prototype trajectory
+  int collision_counter = 0;
   for(int i = 0; i < valid_trajectories.size(); ++i){
     double collision_cost = collisionCost(valid_trajectories[i], sensor_fusion, vehicle_telemetry, target_lanes[i])*pow(10,3);
     double efficieny_cost = efficiencyCost(lane_velocities[i])*40.0;
     double lane_change_cost = laneChangeCost(lane, target_lanes[i])*3.0;
     double lane_occupancy_cost = laneOccupancyCost(target_lanes[i], sensor_fusion, vehicle_telemetry[3])*0.25;
-    double center_deviation_cost = centerDeviationCost(target_lanes[i])*1.0;
+    double center_deviation_cost = centerDeviationCost(target_lanes[i])*0.5;
     double total_cost = collision_cost + efficieny_cost + lane_change_cost + lane_occupancy_cost + center_deviation_cost;
     costs.push_back(total_cost);
+    if(collision_cost > 0){
+      collision_counter++;
+      // if changing lanes set collisions to true so that the validStaets function can allow lane reversion
+      if(transitioning){
+        collision = true;
+      }
+    }
+    string print_statement;
+    switch(valid_states[i]){
+      case(State::KL):
+        print_statement = "KL ";
+        break;
+      case(State::LCL):
+        print_statement = "LCL";
+        break;
+      case(State::LCR):
+        print_statement = "LCR";
+        break;
+      default:
+        print_statement = "";
+        break;
+    }
+    std::cout << "Total Cost [" << print_statement << "]" << "(" << target_lanes[i] << "): " << total_cost << std::endl;
   }
+
+  // If all trajectories result in a collision, try braking only
+  collision_counter == valid_trajectories.size() ? braking_only = true : braking_only = false;
 
   // Select the lowest cost for execution
   int minElementIndex = std::min_element(costs.begin(),costs.end()) - costs.begin();
